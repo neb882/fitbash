@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>fitbash</title>
+    <meta name="description" content="Paste clothing pictures or links and see them together as one outfit." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <h1>fitbash</h1>
+      <p>Paste clothing pictures or shop links. Get one picture of the whole outfit.</p>
+    </header>
+
+    <main>
+      <form id="code-form" class="code-bar" hidden>
+        <label for="code">Access code</label>
+        <input id="code" type="password" autocomplete="off" required />
+        <button type="submit" class="quiet">Save</button>
+      </form>
+
+      <section class="panel" aria-labelledby="pieces-heading">
+        <div class="panel-head">
+          <h2 id="pieces-heading">Pieces</h2>
+          <span id="count" class="muted"></span>
+        </div>
+
+        <div id="dropzone" class="dropzone">
+          <ul id="items" class="items"></ul>
+          <p id="empty" class="empty">
+            Paste a picture or a link anywhere on this page, or drop picture files here.
+          </p>
+        </div>
+
+        <div class="add-row">
+          <form id="link-form" class="link-form">
+            <label for="link" class="visually-hidden">Product link</label>
+            <input id="link" type="url" inputmode="url" placeholder="https://shop.example/some-jacket" required />
+            <button type="submit" class="quiet">Add link</button>
+          </form>
+          <button id="browse" type="button" class="quiet">Add pictures</button>
+          <input id="files" type="file" accept="image/*" multiple hidden />
+        </div>
+        <p id="add-status" class="status" role="status"></p>
+
+        <div id="picker" class="picker" hidden>
+          <div class="panel-head">
+            <h3>Which picture shows the item?</h3>
+            <button id="picker-cancel" type="button" class="quiet">Cancel</button>
+          </div>
+          <ul id="picker-list" class="picker-list"></ul>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="look-heading">
+        <h2 id="look-heading">Look</h2>
+        <fieldset class="segmented">
+          <legend class="visually-hidden">How to show the outfit</legend>
+          <div id="styles" class="segments"></div>
+        </fieldset>
+
+        <label class="check">
+          <input id="fill" type="checkbox" checked />
+          <span>Add plain basics for anything missing, like bottoms or shoes</span>
+        </label>
+
+        <label for="notes" class="field-label">Notes <span class="muted">(optional)</span></label>
+        <textarea id="notes" rows="2" maxlength="500" placeholder="Tuck the shirt in, sleeves rolled, autumn colors…"></textarea>
+
+        <div class="go-row">
+          <button id="generate" type="button" class="primary" disabled>Make the outfit</button>
+          <span id="setup" class="muted"></span>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="result-heading">
+        <h2 id="result-heading">Outfit</h2>
+        <p id="progress" class="status" role="status">Your outfit picture shows up here.</p>
+        <ol id="attempts" class="attempts"></ol>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
