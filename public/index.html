@@ -3,9 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Scripts come only from this site, and the page may talk only to itself, the
-         three AI providers, and an app on the visitor's own computer. That keeps saved
-         API keys from going anywhere else. -->
+    <!-- Scripts come only from this site, and the page may send requests only to itself,
+         the three AI providers, and an app on the visitor's own computer. That keeps saved
+         API keys from going anywhere else. Pictures may be loaded from any secure address,
+         because a visitor can paste a link to one. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'"

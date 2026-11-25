@@ -97,7 +97,14 @@ export function createApp({ fetchOptions = {}, publicDir = PUBLIC_DIR } = {}) {
     if (pathname === "/api/extract" && req.method === "POST") {
       const body = await readJson(req);
       if (typeof body?.url !== "string") throw new HttpError(400, "Send a link to look up.");
-      return sendJson(res, 200, await extractFromUrl(body.url, fetchOptions));
+      try {
+        return sendJson(res, 200, await extractFromUrl(body.url, fetchOptions));
+      } catch (error) {
+        if (error instanceof FetchError) throw error;
+        // Whatever went wrong reading that page, the visitor still has a way forward.
+        console.error("lookup failed:", error);
+        throw new FetchError("Couldn't read that page. Copy the picture and paste it here instead.", "unreadable");
+      }
     }
 
     if (pathname === "/api/image" && req.method === "GET") {

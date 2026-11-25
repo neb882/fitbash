@@ -17,7 +17,14 @@ const EXTENSIONS = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "web
 // A picture can take minutes on a modest computer, more the first time while the model loads.
 const GENERATE_TIMEOUT_MS = 20 * 60_000;
 
-/** What Setup says for each kind of computer, and which model it suggests first. */
+/**
+ * What Setup says for each kind of computer, and which model it suggests first.
+ *
+ * The two models named here are the only ones in Lemonade's catalog (2026-11) that
+ * combine pictures and run on its stable-diffusion.cpp backend, which is the one that
+ * works on Windows with an NVIDIA card and on Macs. The larger ranks higher among open
+ * models and is licensed for non-commercial use. README.md, "Which models, and why".
+ */
 export const LOCAL_TIERS = {
   small: {
     model: "Flux-2-Klein-4B",
@@ -149,27 +156,29 @@ export async function findLocalModels(baseUrl, { fetchImpl = fetch } = {}) {
 }
 
 /**
- * Ask the app to download a model. Resolves to true once the app has taken the
- * request; the download itself can run for a long time, so watch
- * findLocalModels() for `downloaded` instead of waiting on this.
+ * Ask the app to download a model. Resolves to { started, finished }:
+ *
+ *   started   false when the app refused the request straight away
+ *   finished  a promise for how the request ended: true when the app reported
+ *             success, false when it failed or the connection dropped. The app
+ *             may hold the request open for the whole download, so this can
+ *             take a long time; watch findLocalModels() for `downloaded` too.
  */
 export async function startLocalDownload(baseUrl, modelId, { fetchImpl = fetch } = {}) {
-  const request = fetchImpl(`${clean(baseUrl)}/pull`, {
+  const finished = fetchImpl(`${clean(baseUrl)}/pull`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ model_name: modelId, stream: false }),
-  });
-  // The app may hold the request open until the download ends. Give it a moment
-  // to refuse; silence after that means it has started.
-  const refused = await Promise.race([
-    request.then(
-      (res) => !res.ok,
-      () => true,
-    ),
+  }).then(
+    (res) => res.ok,
+    () => false,
+  );
+  // Give the app a moment to refuse; silence after that means it has started.
+  const refusedQuickly = await Promise.race([
+    finished.then((ok) => !ok),
     new Promise((resolve) => setTimeout(() => resolve(false), 3_000)),
   ]);
-  request.catch(() => {});
-  return !refused;
+  return { started: !refusedQuickly, finished };
 }
 
 /** The model to offer first for a kind of computer, out of those the app has. */

@@ -36,6 +36,7 @@ const MAX_ITEMS = 8;
 const MAX_ATTEMPTS = 2; // One redo when the check finds a problem.
 const SETTINGS_KEY = "fitbash-settings";
 const DOWNLOAD_POLL_MS = 3000; // How often to ask the local app whether a download has finished.
+const LOST_AFTER_POLLS = 4; // This many unanswered in a row, and the app is taken to be gone.
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -289,29 +290,44 @@ async function connectLocal() {
 async function downloadLocalModel() {
   const id = ui.localModel.value;
   const model = state.local.models.find((m) => m.id === id);
+  const stop = (message) => {
+    state.local.downloading = "";
+    renderSettings();
+    setLocalStatus(message, "error");
+  };
+  const insideTheApp = `Download "${id}" inside ${LOCAL_APP.name} (Model Manager), then press Connect.`;
+
   state.local.downloading = id;
   renderSettings();
   setLocalStatus("Asking the app to download the model…");
-  if (!(await startLocalDownload(state.settings.localUrl, id))) {
-    state.local.downloading = "";
-    renderSettings();
-    setLocalStatus(
-      `The app wouldn't start the download. Download "${id}" inside ${LOCAL_APP.name} (Model Manager), then press Connect.`,
-      "error",
-    );
-    return;
-  }
+  const download = await startLocalDownload(state.settings.localUrl, id);
+  if (!download.started) return stop(`The app wouldn't start the download. ${insideTheApp}`);
+
   setLocalStatus(
     `Downloading${model?.sizeGb ? ` ${model.sizeGb} GB` : ""}. Keep ${LOCAL_APP.name} and this page open; it can take a while.`,
   );
-  // The app reports the model as downloaded when it is done.
+  let ended; // how the app's own request ended, once it has
+  download.finished.then((ok) => (ended = ok));
+  let unanswered = 0;
+
+  // The app lists the model as downloaded when it is done. Every way out of this loop
+  // either finishes Setup or says what to do: it must never leave the page just waiting.
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_MS));
-    if (state.local.downloading !== id) return;
+    if (state.local.downloading !== id) return; // Setup was changed meanwhile.
+    const requestEnded = ended !== undefined;
     const found = await findLocalModels(state.settings.localUrl);
-    if (found.status !== "connected") continue; // The app may be busy; keep asking.
+    if (found.status !== "connected") {
+      if (++unanswered >= LOST_AFTER_POLLS) {
+        return stop(`Lost touch with ${LOCAL_APP.name} during the download. Open it again and press Connect.`);
+      }
+      continue;
+    }
+    unanswered = 0;
     state.local.models = found.models;
     if (found.models.find((m) => m.id === id)?.downloaded) break;
+    // The app said the download was over, one way or the other, and the model still isn't there.
+    if (requestEnded) return stop(`The download didn't finish. ${insideTheApp}`);
   }
   state.local.downloading = "";
   renderSettings();
@@ -687,7 +703,7 @@ function showImage(attempt, image) {
   );
 }
 
-function showReview(attempt, review) {
+function showReview(attempt, review, labels) {
   const notes = card(attempt).querySelector(".notes");
   const download = notes.querySelector(".download");
 
@@ -704,7 +720,7 @@ function showReview(attempt, review) {
   const problems = review.items
     .filter((item) => !item.present || !item.faithful)
     .map((item) => {
-      const name = state.items[item.number - 1]?.label || `Piece ${item.number}`;
+      const name = labels[item.number - 1] || `Piece ${item.number}`;
       return `${name}: ${item.present ? item.problem || "doesn't match its picture" : "missing"}`;
     });
   if (review.otherProblems) problems.push(review.otherProblems);
@@ -721,9 +737,14 @@ function markBest(best, attempts) {
   ui.attempts.prepend(node);
 }
 
-function handleEvent(event, maxAttempts) {
+/**
+ * Show one step of a run. `run` holds what was true when the run began (its pieces'
+ * names, where it is being made), since the page may be changed while it is under way.
+ */
+function handleEvent(event, run) {
+  const { maxAttempts } = run;
   const of = maxAttempts > 1 ? ` (attempt ${event.attempt} of up to ${maxAttempts})` : "";
-  const wait = isLocal() && ready() ? "On your own computer this can take a few minutes." : "This can take a minute.";
+  const wait = run.local ? "On your own computer this can take a few minutes." : "This can take a minute.";
   switch (event.type) {
     case "generating":
       setProgress(event.attempt === 1 ? `Making the picture${of}. ${wait}` : `Redoing it with the check's notes${of}.`);
@@ -735,14 +756,14 @@ function handleEvent(event, maxAttempts) {
       setProgress("Checking the picture against your pieces.");
       break;
     case "review":
-      showReview(event.attempt, event.review);
+      showReview(event.attempt, event.review, run.labels);
       break;
     case "warning":
       ui.attempts.after(el("p", { class: "status error", text: event.message }));
       break;
     case "done":
       markBest(event.best, event.attempts);
-      setProgress(ready() ? "Done." : "This is only a collage of your pieces. Finish Setup at the top of the page to get a real outfit picture.");
+      setProgress(run.real ? "Done." : "This is only a collage of your pieces. Finish Setup at the top of the page to get a real outfit picture.");
       break;
   }
 }
@@ -769,19 +790,28 @@ async function generate() {
       fillGaps: ui.fill.checked,
       notes: ui.notes.value,
     };
+    const run = {
+      maxAttempts,
+      labels: request.items.map((item) => item.label),
+      real: provider.name !== "mock",
+      local: provider.name === "local",
+    };
     const made = new Map(); // attempt number to its picture and review, to keep the best one afterwards
     let best = 0;
     for await (const event of runOutfit(request, { provider, critic, maxAttempts })) {
       if (event.type === "image") made.set(event.attempt, { image: event.image });
       if (event.type === "review") made.get(event.attempt).review = event.review;
       if (event.type === "done") best = event.best;
-      handleEvent(event, maxAttempts);
+      handleEvent(event, run);
     }
     // A stand-in collage isn't an outfit worth keeping.
-    if (provider.name !== "mock" && made.has(best)) await keepOutfit(made.get(best), request);
+    if (run.real && made.has(best)) await keepOutfit(made.get(best), request);
   } catch (error) {
     if (!(error instanceof ProviderError)) console.error(error);
-    setProgress(error instanceof ProviderError ? error.message : "Something went wrong while making the picture.", true);
+    setProgress(
+      error instanceof ProviderError ? error.message : "Something went wrong while making the picture. Try again in a minute.",
+      true,
+    );
     if (error instanceof ProviderError && /in Setup/.test(error.message)) openSetup();
   } finally {
     state.busy = false;

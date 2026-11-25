@@ -121,16 +121,28 @@ test("an app that is running but refuses this website is told apart from one tha
 
 test("a download is requested by model name, and a quick refusal is reported", async () => {
   const accepted = recorder(() => new Promise(() => {})); // the app holds the request open while it downloads
-  const started = startLocalDownload("http://localhost:13305/v1", "Flux-2-Klein-4B", accepted);
-  assert.equal(await started, true);
+  const download = await startLocalDownload("http://localhost:13305/v1", "Flux-2-Klein-4B", accepted);
+  assert.equal(download.started, true);
   const { url, init } = accepted.calls[0];
   assert.equal(url, "http://localhost:13305/v1/pull");
   assert.equal(init.method, "POST");
   assert.deepEqual(JSON.parse(init.body), { model_name: "Flux-2-Klein-4B", stream: false });
 
-  assert.equal(await startLocalDownload(undefined, "m", recorder(() => json(200, { status: "success" }))), true);
-  assert.equal(await startLocalDownload(undefined, "m", recorder(() => json(404, { error: "unknown model" }))), false);
-  assert.equal(await startLocalDownload(undefined, "m", recorder(() => { throw new TypeError("Failed to fetch"); })), false);
+  const quick = await startLocalDownload(undefined, "m", recorder(() => json(200, { status: "success" })));
+  assert.equal(quick.started, true);
+  assert.equal(await quick.finished, true);
+  assert.equal((await startLocalDownload(undefined, "m", recorder(() => json(404, { error: "unknown model" })))).started, false);
+  assert.equal((await startLocalDownload(undefined, "m", recorder(() => { throw new TypeError("Failed to fetch"); }))).started, false);
+});
+
+test("a download that fails after it began is reported, so the page can stop waiting", async () => {
+  const later = (answer) => recorder(() => new Promise((resolve, reject) => setTimeout(() => answer(resolve, reject), 3300)));
+  const failed = await startLocalDownload(undefined, "m", later((resolve) => resolve(json(500, { error: "disk full" }))));
+  assert.equal(failed.started, true);
+  assert.equal(await failed.finished, false);
+  const dropped = await startLocalDownload(undefined, "m", later((resolve, reject) => reject(new TypeError("Failed to fetch"))));
+  assert.equal(dropped.started, true);
+  assert.equal(await dropped.finished, false);
 });
 
 test("the model offered first fits the computer, falling back to what the app has", () => {

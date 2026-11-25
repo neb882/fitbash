@@ -9,6 +9,7 @@ import https from "node:https";
 import dns from "node:dns";
 import net from "node:net";
 import zlib from "node:zlib";
+import stream from "node:stream";
 
 export class FetchError extends Error {
   constructor(message, code = "fetch_failed", status) {
@@ -70,15 +71,13 @@ export function isBlockedAddress(address) {
   return true;
 }
 
-function guardedLookup(allowPrivate) {
+function guardedLookup(isBlocked, lookup) {
   return (hostname, options, callback) => {
-    dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+    lookup(hostname, { ...options, all: true }, (err, addresses) => {
       if (err) return callback(err);
-      if (!allowPrivate) {
-        const bad = addresses.find((a) => isBlockedAddress(a.address));
-        if (bad) {
-          return callback(new FetchError("That address isn't allowed.", "blocked_address"));
-        }
+      // Every answer is checked: a name may resolve to a public and a private address at once.
+      if (addresses.some((a) => isBlocked(a.address))) {
+        return callback(new FetchError("That address isn't allowed.", "blocked_address"));
       }
       if (options.all) return callback(null, addresses);
       callback(null, addresses[0].address, addresses[0].family);
@@ -86,28 +85,40 @@ function guardedLookup(allowPrivate) {
   };
 }
 
-function decompress(res) {
+function unzipper(res) {
   const encoding = (res.headers["content-encoding"] || "").toLowerCase();
-  if (encoding === "gzip" || encoding === "x-gzip") return res.pipe(zlib.createGunzip());
-  if (encoding === "deflate") return res.pipe(zlib.createInflate());
-  if (encoding === "br") return res.pipe(zlib.createBrotliDecompress());
-  return res;
+  if (encoding === "gzip" || encoding === "x-gzip") return zlib.createGunzip();
+  if (encoding === "deflate") return zlib.createInflate();
+  if (encoding === "br") return zlib.createBrotliDecompress();
+  return null;
 }
 
-function requestOnce(url, { allowPrivate, timeoutMs, maxBytes, accept }) {
+function requestOnce(url, { isBlocked, lookup, timeoutMs, deadlineMs, maxBytes, accept }) {
   return new Promise((resolve, reject) => {
     const client = url.protocol === "https:" ? https : http;
     // A literal IP never goes through lookup, so check it here.
     const literal = url.hostname.replace(/^\[|\]$/g, "");
-    if (net.isIP(literal) && !allowPrivate && isBlockedAddress(literal)) {
+    if (net.isIP(literal) && isBlocked(literal)) {
       return reject(new FetchError("That address isn't allowed.", "blocked_address"));
     }
+
+    // Whatever happens first settles the request, once, and stops everything else.
+    let settled = false;
+    let deadline;
+    const finish = (settle, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      settle(value);
+      req.destroy();
+    };
+    const fail = (error) => finish(reject, error);
 
     const req = client.request(
       url,
       {
         method: "GET",
-        lookup: guardedLookup(allowPrivate),
+        lookup: guardedLookup(isBlocked, lookup),
         headers: {
           // Shops often reject requests that don't look like a browser.
           "user-agent":
@@ -120,44 +131,46 @@ function requestOnce(url, { allowPrivate, timeoutMs, maxBytes, accept }) {
       (res) => {
         const status = res.statusCode ?? 0;
         if (status >= 300 && status < 400 && res.headers.location) {
-          res.resume();
-          return resolve({ redirect: res.headers.location });
+          return finish(resolve, { redirect: res.headers.location });
         }
         if (status < 200 || status >= 300) {
-          res.resume();
-          return reject(new FetchError(`The site answered with HTTP ${status}.`, "bad_status", status));
+          return fail(new FetchError(`The site answered with HTTP ${status}.`, "bad_status", status));
         }
 
         const chunks = [];
         let size = 0;
-        const body = decompress(res);
+        const unzip = unzipper(res);
+        const body = unzip ?? res;
+        // pipeline() carries a broken connection through to the unzipper, which a bare pipe() would not.
+        if (unzip) {
+          stream.pipeline(res, unzip, (error) => {
+            if (error) fail(new FetchError("The download broke off.", "read_failed"));
+          });
+        } else {
+          res.on("error", () => fail(new FetchError("The download broke off.", "read_failed")));
+          res.on("aborted", () => fail(new FetchError("The download broke off.", "read_failed")));
+        }
         body.on("data", (chunk) => {
+          // Counted after unpacking, so a small compressed answer cannot unfold into a huge one.
           size += chunk.length;
-          if (size > maxBytes) {
-            req.destroy();
-            reject(new FetchError("That file is too large.", "too_large"));
-            return;
-          }
+          if (size > maxBytes) return fail(new FetchError("That file is too large.", "too_large"));
           chunks.push(chunk);
         });
         body.on("end", () =>
-          resolve({
+          finish(resolve, {
             status,
             contentType: (res.headers["content-type"] || "").split(";")[0].trim().toLowerCase(),
             body: Buffer.concat(chunks),
           }),
         );
-        body.on("error", () => reject(new FetchError("The download broke off.", "read_failed")));
       },
     );
 
-    req.setTimeout(timeoutMs, () => {
-      req.destroy(new FetchError("The site took too long to answer.", "timeout"));
-    });
-    req.on("error", (err) => {
-      if (err instanceof FetchError) return reject(err);
-      reject(new FetchError("Couldn't reach that site.", "unreachable"));
-    });
+    // Two clocks: one for a site that goes quiet, one for the whole answer, so a
+    // site that sends a byte now and then cannot hold the lookup open for ever.
+    req.setTimeout(timeoutMs, () => fail(new FetchError("The site took too long to answer.", "timeout")));
+    deadline = setTimeout(() => fail(new FetchError("The site took too long to answer.", "timeout")), deadlineMs);
+    req.on("error", (err) => fail(err instanceof FetchError ? err : new FetchError("Couldn't reach that site.", "unreachable")));
     req.end();
   });
 }
@@ -170,7 +183,12 @@ export async function safeFetch(
   rawUrl,
   {
     allowPrivate = false,
+    // Which addresses to refuse, and how names are resolved. Tests replace these to stand a
+    // local server in for a public one; nothing else should.
+    isBlocked = allowPrivate ? () => false : isBlockedAddress,
+    lookup = dns.lookup,
     timeoutMs = 10_000,
+    deadlineMs = 30_000,
     maxBytes = 5 * 1024 * 1024,
     maxRedirects = 5,
     accept = "*/*",
@@ -190,7 +208,7 @@ export async function safeFetch(
     if (url.username || url.password) {
       throw new FetchError("Links with a login in them aren't supported.", "bad_url");
     }
-    const result = await requestOnce(url, { allowPrivate, timeoutMs, maxBytes, accept });
+    const result = await requestOnce(url, { isBlocked, lookup, timeoutMs, deadlineMs, maxBytes, accept });
     if (!result.redirect) return { url: url.href, ...result };
     try {
       url = new URL(result.redirect, url);

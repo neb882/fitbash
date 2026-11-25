@@ -59,6 +59,17 @@ Things worth knowing:
 
 This path was written from Lemonade's documentation and is tested against a stand-in for the app. It has not yet been run against the real app on real hardware, so expect to fix a detail or two on first use.
 
+## Which models, and why
+
+The defaults were chosen from public rankings and the services' own documentation (read in November 2026). They have not yet been compared side by side on real clothes, which is the test that matters; treat this as the reasoning, not a result.
+
+- **OpenAI `gpt-image-2.5-sunburst`.** In the top four of the Artificial Analysis image-editing ranking, and reported to lead the Arena ranking for edits from several pictures. `gpt-image-2.6-sunburst` ranks slightly higher and costs more per picture; put its name under **Advanced** in Setup to use it.
+- **Google `gemini-nano-banana-2.1`.** About tenth in the same ranking, but it takes the most reference pictures (14, per Google) and costs about 4 cents a picture, the least of the leaders.
+- **All of them are weakest where it matters most here.** A published test of earlier versions of these models on 850 products found a product's details kept only about 28% of the time, with distorted logos and lettering the commonest fault. That is why the quality check exists.
+- **On your own computer**, Lemonade can run two models that combine several pictures on a Windows PC with an NVIDIA card or on a Mac: `Flux-2-Klein-4B`, which the page suggests, and `Flux-2-Klein-9B-GGUF`, which it suggests for graphics cards with 20 GB or more. The larger one ranks higher among open models (1012 against 940 on Artificial Analysis) and is licensed for non-commercial use only. When a model does not fit in the graphics card's memory, the app spills over into ordinary memory: it still works, more slowly.
+- **Better open models exist than Lemonade can run on those computers:** FLUX.3 Image Klein (1068 in that ranking, and said by its maker to fit 8 GB cards) and Qwen-Image 2.1 (1082). stable-diffusion.cpp's own server runs both; someone comfortable setting that up can point fitbash at it under **Advanced**.
+- **Not yet looked at closely:** Microsoft's MAI-Image-2.7 (top of the Artificial Analysis ranking, five reference pictures at most), Kling Image 4.0, Google's dearer `gemini-3-pro-image`, and the services built for trying clothes on.
+
 ## The quality check
 
 Image models often return a polished picture that has quietly changed what matters: a graphic tee's print redrawn, a color shifted, a piece left out. If you also add a Claude key under **Optional: double-check every picture** in Setup, every generated picture goes to Claude along with your item pictures. Claude reports per item whether it is present and true to its picture. When something is off, fitbash regenerates once with Claude's notes, shows both attempts with their verdicts, and marks the better one.
@@ -99,7 +110,7 @@ If you run fitbash from your own copy with `npm start`, there is no notice: upda
 ## Your keys and pictures
 
 - Keys are saved in your browser's local storage and nowhere else. **Forget my keys** in Setup removes them.
-- Requests go straight from your browser to the provider the key belongs to. The page's content security policy allows it to contact only itself, Google, OpenAI, Anthropic and an app on your own computer, and to run only its own scripts.
+- Requests go straight from your browser to the provider the key belongs to. The page's content security policy lets it send requests only to itself, Google, OpenAI, Anthropic and an app on your own computer, and run only its own scripts. The one other thing it can reach is a picture at a link you paste, which it loads the way any page loads an image.
 - fitbash has no server of its own that stores anything: no accounts, no database, no analytics. Past outfits stay in your browser. Your item pictures go to the image provider you chose, and to Anthropic if the quality check is on, under those providers' terms. With a model on your own computer and the check off, they go nowhere.
 - A key kept in a browser can be read by anyone with access to that browser profile. Use keys with a spending limit, and don't save them on a shared computer.
 

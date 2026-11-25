@@ -130,7 +130,7 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
     route.fulfill({ status, headers: { ...CORS, "content-type": "application/json" }, body: JSON.stringify(body) });
   const preflight = (route) => route.fulfill({ status: 204, headers: CORS });
 
-  await page.route("https://generativelanguage.googleapis.com/**", (route) => {
+  await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
     const request = route.request();
     if (request.method() === "OPTIONS") return preflight(route);
     const key = request.headers()["x-goog-api-key"];
@@ -140,6 +140,7 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
         : json(route, 400, { error: { message: "API key not valid. Please pass a valid API key." } });
     }
     seen.google.push({ key, body: request.postDataJSON() });
+    if (services.googleDelay) await new Promise((resolve) => setTimeout(resolve, services.googleDelay));
     if (services.googleError) return json(route, ...services.googleError);
     const picture = (services.pictures ?? [OUTFIT_RIGHT])[seen.google.length - 1] ?? OUTFIT_RIGHT;
     json(route, 200, { steps: [{ type: "model_output", content: [{ type: "image", data: picture }] }] });
@@ -184,7 +185,7 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
 
   // The app on the visitor's own computer. `services.local` is read on every request, so a
   // test can install the app, make it refuse the website, or change its models as it goes.
-  await page.route("http://localhost:13305/**", (route) => {
+  await page.route(/^http:\/\/(localhost:13305|127\.0\.0\.1:1234)\//, (route) => {
     const request = route.request();
     const local = services.local;
     if (!local) return route.abort("connectionrefused");
@@ -201,6 +202,9 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
     if (path === "/v1/pull") {
       const { model_name: name } = request.postDataJSON();
       seen.local.push({ pull: name });
+      // An app that accepts the download and then fails it some seconds in.
+      if (local.pullFails) return setTimeout(() => json(route, 500, { error: "disk full" }), 4000);
+      if (local.neverFinishes) return; // held open, as the app does while it downloads
       local.catalog = local.catalog.map((model) => (model.id === name ? { ...model, downloaded: true } : model));
       return json(route, 200, { status: "success" });
     }
@@ -651,12 +655,19 @@ test("outfits made here are kept in this browser, and can be looked at, reused a
   await page.click(".past:first-child .past-actions button:last-child");
   await page.waitForFunction(() => document.querySelectorAll(".past").length === 2);
 
-  // Removing everything takes a second press.
+  // Removing everything takes a second press, and takes the stored item pictures with it.
+  const idsBefore = await page.evaluate(async () => (await (await import("./lib/history.js")).listOutfits()).map((o) => o.id));
+  assert.equal(idsBefore.length, 2);
   await page.click("#history-clear");
   assert.equal(await text(page, "#history-clear"), "Really remove all?");
   assert.equal(await page.locator(".past").count(), 2);
   await page.click("#history-clear");
   await page.waitForSelector("#history", { state: "hidden" });
+  const piecesLeft = await page.evaluate(async (ids) => {
+    const history = await import("./lib/history.js");
+    return (await Promise.all(ids.map((id) => history.outfitPieces(id)))).flat().length;
+  }, idsBefore);
+  assert.equal(piecesLeft, 0);
   await reloaded(page);
   assert.equal(await page.isHidden("#history"), true);
   assert.deepEqual(seen.errors, []);
@@ -761,3 +772,97 @@ for (const scheme of ["light", "dark"]) {
     assert.deepEqual(found, []);
   });
 }
+
+const FAIL_BETTER = { ...FAIL, score: 6 };
+const FAIL_WORSE = { ...FAIL, score: 3 };
+
+test("when no attempt passes the check, the page stops at two pictures and keeps the better one", options, async (t) => {
+  const services = { pictures: [OUTFIT_RIGHT, OUTFIT_WRONG], verdicts: [FAIL_BETTER, FAIL_WORSE, PASS, PASS] };
+  const { page, seen } = await open(t, { services });
+  await page.fill("#provider-key", "GOOD-KEY");
+  await page.click(".sub summary");
+  await page.fill("#claude-key", "GOOD-CLAUDE");
+  await addFiles(page, TEE);
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+
+  // Each attempt is the visitor's money: two pictures and two checks, and no more.
+  assert.equal(seen.google.length, 2);
+  assert.equal(seen.claude.length, 2);
+  // The first attempt scored higher, so it is the one shown first and the one kept.
+  const shown = await cards(page);
+  assert.match(shown[0], /^Attempt 1 \| Off in places · 6\/10 \| Best match/);
+  assert.match(shown[1], /^Attempt 2 \| Off in places · 3\/10/);
+  await page.waitForSelector(".past");
+  const kept = await page.evaluate(async () => {
+    const [latest] = await (await import("./lib/history.js")).listOutfits();
+    return btoa(String.fromCharCode(...new Uint8Array(await latest.picture.arrayBuffer())));
+  });
+  assert.equal(kept, OUTFIT_RIGHT);
+  assert.match((await pastOutfits(page))[0], /off in places$/);
+});
+
+test("what a run reports belongs to that run, whatever is changed on the page meanwhile", options, async (t) => {
+  const faultsFirst = { ...FAIL, items: [{ number: 1, present: true, faithful: false, problem: "print differs" }] };
+  const services = { googleDelay: 800, verdicts: [faultsFirst, PASS] };
+  const { page } = await open(t, { services });
+  await page.fill("#provider-key", "GOOD-KEY");
+  await page.click(".sub summary");
+  await page.fill("#claude-key", "GOOD-CLAUDE");
+  await addFiles(page, [TEE, JEANS]);
+  await page.locator(".item input").nth(0).fill("frog tee");
+  await page.locator(".item input").nth(1).fill("blue jeans");
+
+  await page.click("#generate");
+  // While the picture is being made, the first piece is removed and the keys are forgotten.
+  await page.click(".item:first-child .remove");
+  await page.click("#forget");
+  await untilText(page, "#progress", "Done.");
+
+  // The check faulted the first piece of the run, the frog tee, and the pictures are real ones.
+  assert.match((await cards(page)).join(" || "), /frog tee: print differs/);
+  assert.doesNotMatch(await text(page, "#progress"), /collage/);
+});
+
+test("a local download that fails, or an app that goes away, does not leave Setup waiting for ever", options, async (t) => {
+  const services = { local: { catalog: localCatalog(), pullFails: true } };
+  const { page } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "medium");
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "has to be downloaded first");
+
+  await page.click("#local-download");
+  await untilText(page, "#local-status", "Downloading");
+  await untilText(page, "#local-status", "didn't finish");
+  assert.equal(await page.locator("#local-status.error").count(), 1);
+  assert.equal(await page.isVisible("#local-download"), true);
+  assert.equal(await page.isEnabled("#local-model"), true);
+
+  // A second try: the download starts, then the app is closed.
+  services.local.pullFails = false;
+  services.local.catalog = localCatalog(); // still not downloaded
+  const holdOpen = services.local;
+  holdOpen.neverFinishes = true;
+  await page.click("#local-download");
+  await untilText(page, "#local-status", "Downloading");
+  services.local = null;
+  await page.waitForFunction(() => document.querySelector("#local-status").textContent.includes("Lost touch"), null, { timeout: 30_000 });
+  assert.equal(await page.isEnabled("#local-model"), true);
+});
+
+test("changing the local app's address makes Setup unfinished again", options, async (t) => {
+  const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
+  const { page } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "medium");
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  assert.equal(await text(page, "#settings-summary"), "This computer connected");
+
+  await page.click(".sub:last-of-type summary");
+  await page.fill("#local-url", "http://127.0.0.1:1234/v1");
+  assert.match(await text(page, "#settings-summary"), /Do this once/);
+  const stored = JSON.parse(await page.evaluate(() => localStorage.getItem("fitbash-settings")));
+  assert.equal(stored.localModel, "");
+});

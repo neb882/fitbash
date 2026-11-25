@@ -13,8 +13,40 @@ function decodeEntities(text) {
     .replace(/&#0*39;|&apos;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)));
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => fromCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => fromCode(Number(dec)));
+}
+
+// A page can name a character code that doesn't exist; drop it instead of throwing.
+const fromCode = (code) => (code <= 0x10ffff ? String.fromCodePoint(code) : "");
+
+// Real tags are far shorter than this. A longer one is skipped, so a page built
+// to be slow to read cannot hold the lookup up.
+const MAX_TAG = 2000;
+
+/**
+ * Every opening tag of one name, in order, as { tag, end }. One pass over the
+ * page whatever it contains: the position of the next ">" is remembered, and a
+ * page with no ">" left ends the search.
+ */
+function* openTags(html, lower, name) {
+  const needle = `<${name}`;
+  let close = -1;
+  for (let at = lower.indexOf(needle); at !== -1; at = lower.indexOf(needle, at + needle.length)) {
+    if (close < at) {
+      close = html.indexOf(">", at);
+      if (close === -1) return;
+    }
+    const next = lower[at + needle.length];
+    const isThisTag = next === ">" || next === "/" || /\s/.test(next); // not <metadata>, <linker>, ...
+    if (isThisTag && close - at <= MAX_TAG) yield { tag: html.slice(at, close + 1), end: close + 1 };
+  }
+}
+
+/** The text between an opening tag and its closing tag, or null when it never closes. */
+function contentAfter(html, lower, end, name) {
+  const close = lower.indexOf(`</${name}`, end);
+  return close === -1 ? null : html.slice(end, close);
 }
 
 function attributes(tag) {
@@ -27,7 +59,7 @@ function attributes(tag) {
   return attrs;
 }
 
-function jsonLdImages(html) {
+function jsonLdImages(html, lower) {
   const found = [];
   const collect = (value) => {
     if (!value) return;
@@ -42,11 +74,12 @@ function jsonLdImages(html) {
     if (types.some((t) => /^(Product|ProductGroup)$/i.test(String(t)))) collect(node.image);
     if (node["@graph"]) visit(node["@graph"]);
   };
-  const re = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-  let m;
-  while ((m = re.exec(html))) {
+  for (const { tag, end } of openTags(html, lower, "script")) {
+    if (!/^application\/ld\+json$/i.test(attributes(tag).type ?? "")) continue;
+    const text = contentAfter(html, lower, end, "script");
+    if (text === null) break; // No script closes from here on.
     try {
-      visit(JSON.parse(m[1]));
+      visit(JSON.parse(text));
     } catch {
       // Shops ship broken JSON-LD often enough; the meta tags still work.
     }
@@ -76,10 +109,11 @@ export function extractFromHtml(html, baseUrl) {
     candidates.push({ url: url.href, source });
   };
 
-  for (const url of jsonLdImages(html)) add(url, "product data");
+  const lower = html.toLowerCase(); // tag names are matched without regard to case
+  for (const url of jsonLdImages(html, lower)) add(url, "product data");
 
   const metas = {};
-  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+  for (const { tag } of openTags(html, lower, "meta")) {
     const a = attributes(tag);
     const key = (a.property || a.name || "").toLowerCase();
     if (key && a.content && !(key in metas)) metas[key] = a.content;
@@ -88,12 +122,13 @@ export function extractFromHtml(html, baseUrl) {
     add(metas[key], "preview image");
   }
 
-  for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
+  for (const { tag } of openTags(html, lower, "link")) {
     const a = attributes(tag);
     if ((a.rel || "").toLowerCase() === "image_src") add(a.href, "preview image");
   }
 
-  for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
+  for (const { tag } of openTags(html, lower, "img")) {
+    if (candidates.length >= MAX_CANDIDATES) break;
     const a = attributes(tag);
     const src = a.src || a["data-src"];
     if (!src || src.startsWith("data:")) continue;
@@ -103,8 +138,9 @@ export function extractFromHtml(html, baseUrl) {
     add(src, "page image");
   }
 
-  const titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  const title = (metas["og:title"] || (titleTag ? decodeEntities(titleTag[1]) : ""))
+  const [firstTitle] = openTags(html, lower, "title");
+  const titleText = firstTitle ? contentAfter(html, lower, firstTitle.end, "title") : null;
+  const title = (metas["og:title"] || decodeEntities(titleText ?? ""))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 140);

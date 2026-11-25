@@ -40,18 +40,32 @@ test("the page works from a subfolder on a static host", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   // GitHub Pages serves the site under /<repository>/, so nothing may be root-relative.
   assert.deepEqual(html.match(/(?:src|href)="\/[^"]*"/g), null);
-  assert.match(html, /http-equiv="Content-Security-Policy"/);
-  assert.match(html, /script-src 'self'/);
-  // The page may talk only to itself, the three AI providers, and an app on the visitor's own computer.
-  const connect = html.match(/connect-src ([^;]+);/)[1].split(" ");
-  assert.deepEqual(connect, [
-    "'self'",
-    "https://generativelanguage.googleapis.com",
-    "https://api.openai.com",
-    "https://api.anthropic.com",
-    "http://localhost:*",
-    "http://127.0.0.1:*",
-  ]);
+  // The whole policy, directive by directive: anything added or loosened has to be changed here too.
+  const policy = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]+)"/)[1];
+  const directives = Object.fromEntries(
+    policy.split(";").map((part) => {
+      const [name, ...sources] = part.trim().split(/\s+/);
+      return [name, sources];
+    }),
+  );
+  assert.deepEqual(directives, {
+    "default-src": ["'self'"],
+    "script-src": ["'self'"],
+    "style-src": ["'self'"],
+    // Pictures may come from anywhere secure: a visitor can paste a link to one.
+    "img-src": ["'self'", "data:", "blob:", "https:"],
+    // Requests may go only to the page's own site, the three AI providers, and an app on the visitor's own computer.
+    "connect-src": [
+      "'self'",
+      "https://generativelanguage.googleapis.com",
+      "https://api.openai.com",
+      "https://api.anthropic.com",
+      "http://localhost:*",
+      "http://127.0.0.1:*",
+    ],
+    "base-uri": ["'none'"],
+    "form-action": ["'none'"],
+  });
 
   const app = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
   assert.deepEqual(app.match(/fetch\(\s*["'`]\/[^"'`]*/g), null);
@@ -119,4 +133,12 @@ test("bad requests, unknown routes and wrong methods are refused", async (t) => 
   assert.equal((await fetch(origin + "/api/nope")).status, 404);
   assert.equal((await fetch(origin + "/api/generate", { method: "POST" })).status, 404);
   assert.equal((await fetch(origin + "/", { method: "POST" })).status, 405);
+});
+
+test("a page the lookup cannot make sense of is answered with what to do instead", async (t) => {
+  // An unexpected failure deep in the lookup, stood in for by a check that throws.
+  const broken = await start(t, { fetchOptions: { isBlocked: () => { throw new TypeError("unexpected"); } } });
+  const res = await post(broken, "/api/extract", { url: "http://203.0.113.9/jacket" });
+  assert.equal(res.status, 422);
+  assert.match((await res.json()).error, /Copy the picture and paste it/);
 });

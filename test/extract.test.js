@@ -76,3 +76,34 @@ test("links are looked up over the network", async (t) => {
   assert.equal(image.body.toString(), "PNGDATA");
   await assert.rejects(fetchImage(`${origin}/product`, options), (e) => e.code === "unsupported_type");
 });
+
+test("a page built to stall the lookup is read in a blink", () => {
+  const timed = (html) => {
+    const start = performance.now();
+    extractFromHtml(html, "https://shop.example/");
+    return performance.now() - start;
+  };
+  // Each is four megabytes, the most the lookup will download. Read naively, any of these
+  // takes from several seconds to hours.
+  const SIZE = 4_000_000;
+  const fill = (piece) => piece.repeat(Math.floor(SIZE / piece.length));
+  const cases = {
+    "one tag with a very long word": `<meta property="og:image" content="/a.jpg" ${"x".repeat(SIZE)}>`,
+    "tags that never close": fill("<meta "),
+    "tags that close only at the very end": `${fill("<meta ")}>`,
+    "scripts that never close": fill('<script type="application/ld+json">'),
+    "titles that never close": fill("<title>"),
+    "images that never close": fill("<img "),
+  };
+  for (const [name, html] of Object.entries(cases)) {
+    const ms = timed(html);
+    assert.ok(ms < 1000, `${name}: ${Math.round(ms)} ms`);
+  }
+});
+
+test("an impossible character code in a page is dropped instead of crashing the lookup", () => {
+  const html = '<title>Tee &#99999999; &#x110000; &#128085;</title><meta property="og:image" content="/a.jpg">';
+  const { title, candidates } = extractFromHtml(html, "https://shop.example/");
+  assert.equal(title, "Tee 👕");
+  assert.equal(candidates.length, 1);
+});
