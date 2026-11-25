@@ -598,6 +598,23 @@ a.button::after {
   content: " ↗";
 }
 
+.connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 4px;
+}
+
+.connect p {
+  margin: 0;
+  flex: 1 1 280px;
+}
+
+#provider-models {
+  margin: 0 0 14px 40px;
+}
+
 .step-note {
   margin: 6px 0 0;
 }

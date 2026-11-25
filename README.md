@@ -27,7 +27,7 @@ Open http://localhost:3000. Running it locally adds one feature the website can'
 
 The page walks you through this in its **Setup** box:
 
-1. Pick a service. Google Gemini is the easier one.
+1. Pick a service: Google Gemini, OpenAI, or OpenRouter. With OpenRouter there is nothing to copy: press **Connect OpenRouter**, sign in there and approve, and you come back with the key filled in.
 2. Press the button to open that service's key page, sign in, and create a key. A key is a long code that works like a password and lets fitbash make pictures on your account.
 3. Paste the key into the page. It tells you straight away whether the key works.
 
@@ -36,10 +36,11 @@ After that you just add pictures and press **Make the outfit**. Before setup is 
 Things worth knowing before you start:
 
 - **Pictures cost money**, usually a few cents each, billed by the service to your own account. Both services want a payment method on file before they make pictures.
-- **Google** needs billing turned on for the key. **OpenAI** needs prepaid credit and an identity check, which takes longer. If either is missing, the page tells you which.
+- **Google** needs billing turned on for the key. **OpenAI** needs prepaid credit and an identity check, which takes longer. **OpenRouter** needs some credit added to the account. If any of these is missing, the page tells you which.
+- **OpenRouter is one account for many models.** It sells access to image models from Google, OpenAI, Microsoft, Black Forest Labs and others, and Setup lets you choose among them from a short list. The page suggests Google's Nano Banana 2.1 there, the cheapest of the leading ones.
 - Services rename their models now and then. If pictures stop working with a message about an unknown model, the current name goes under **Advanced** in Setup. The defaults are `gemini-nano-banana-2.1` and `gpt-image-2.5-sunburst`.
 
-The Gemini and OpenAI connections were written from the services' documentation and are covered by tests that pin the documented request and response shapes. They have not yet been run against the live services, so expect to fix a detail or two on first use.
+The Gemini, OpenAI and OpenRouter connections were written from the services' documentation and are covered by tests that pin the documented request and response shapes. They have not yet been run against the live services, so expect to fix a detail or two on first use.
 
 ## Free alternative: a model on your own computer
 
@@ -68,7 +69,8 @@ The defaults were chosen from public rankings and the services' own documentatio
 - **All of them are weakest where it matters most here.** A published test of earlier versions of these models on 850 products found a product's details kept only about 28% of the time, with distorted logos and lettering the commonest fault. That is why the quality check exists.
 - **On your own computer**, Lemonade can run two models that combine several pictures on a Windows PC with an NVIDIA card or on a Mac: `Flux-2-Klein-4B`, which the page suggests, and `Flux-2-Klein-9B-GGUF`, which it suggests for graphics cards with 20 GB or more. The larger one ranks higher among open models (1012 against 940 on Artificial Analysis) and is licensed for non-commercial use only. When a model does not fit in the graphics card's memory, the app spills over into ordinary memory: it still works, more slowly.
 - **Better open models exist than Lemonade can run on those computers:** FLUX.3 Image Klein (1068 in that ranking, and said by its maker to fit 8 GB cards) and Qwen-Image 2.1 (1082). stable-diffusion.cpp's own server runs both; someone comfortable setting that up can point fitbash at it under **Advanced**.
-- **Not yet looked at closely:** Microsoft's MAI-Image-2.7 (top of the Artificial Analysis ranking, five reference pictures at most), Kling Image 4.0, Google's dearer `gemini-3-pro-image`, and the services built for trying clothes on.
+- **Through OpenRouter** the same two are offered, along with others that rank well and have not been tried here: Microsoft's MAI-Image-2.7 (top of the Artificial Analysis ranking, but five pieces at most), FLUX 3 Image, Seedream 5.5 and Google's dearer Nano Banana Pro. That makes OpenRouter the easy place to compare models on your own clothes.
+- **Not yet looked at closely:** Kling Image 4.0 and the services built for trying clothes on.
 
 ## The quality check
 
@@ -110,7 +112,7 @@ If you run fitbash from your own copy with `npm start`, there is no notice: upda
 ## Your keys and pictures
 
 - Keys are saved in your browser's local storage and nowhere else. **Forget my keys** in Setup removes them.
-- Requests go straight from your browser to the provider the key belongs to. The page's content security policy lets it send requests only to itself, Google, OpenAI, Anthropic and an app on your own computer, and run only its own scripts. The one other thing it can reach is a picture at a link you paste, which it loads the way any page loads an image.
+- Requests go straight from your browser to the provider the key belongs to. The page's content security policy lets it send requests only to itself, Google, OpenAI, OpenRouter, Anthropic and an app on your own computer, and run only its own scripts. The one other thing it can reach is a picture at a link you paste, which it loads the way any page loads an image.
 - fitbash has no server of its own that stores anything: no accounts, no database, no analytics. Past outfits stay in your browser. Your item pictures go to the image provider you chose, and to Anthropic if the quality check is on, under those providers' terms. With a model on your own computer and the check off, they go nowhere.
 - A key kept in a browser can be read by anyone with access to that browser profile. Use keys with a spending limit, and don't save them on a shared computer.
 
@@ -123,7 +125,8 @@ public/                      the whole app; this folder is what GitHub Pages ser
   lib/prompt.js              the instruction sent to the image model, and the three looks
   lib/critic.js              the Claude check (structured verdict per item)
   lib/keycheck.js            tells a person whether a pasted key works, at no cost
-  lib/providers/             gemini, openai, local and mock image models behind one generate() call
+  lib/providers/             gemini, openai, openrouter, local and mock image models behind one generate() call
+  lib/openrouter-connect.js  signing in at OpenRouter to receive a key, instead of pasting one
   lib/hardware.js            guesses the graphics card's size tier, to suggest a local model
   lib/history.js             past outfits, kept in the browser's own storage
   lib/update.js              notices that a newer version of the site is out

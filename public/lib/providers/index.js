@@ -2,6 +2,7 @@ import { createGeminiProvider } from "./gemini.js";
 import { createOpenAIProvider } from "./openai.js";
 import { createMockProvider } from "./mock.js";
 import { createLocalProvider } from "./local.js";
+import { createOpenRouterProvider, OPENROUTER_MODELS } from "./openrouter.js";
 import { ProviderError } from "./errors.js";
 
 export { ProviderError };
@@ -30,6 +31,20 @@ export const PROVIDERS = {
     createKey: "Press “Create new secret key” there, then copy the key it shows you.",
     note: "OpenAI only makes pictures once you have added credit and verified your identity in its settings. Google is usually quicker.",
   },
+  openrouter: {
+    label: "OpenRouter",
+    hint: "one account, many models",
+    company: "OpenRouter",
+    defaultModel: OPENROUTER_MODELS[0].id,
+    models: OPENROUTER_MODELS,
+    // OpenRouter can hand the page a key after a sign-in, with nothing to copy.
+    connect: true,
+    keyUrl: "https://openrouter.ai/keys",
+    openKeyPage: "Open OpenRouter's key page",
+    signIn: "and sign in or create an account.",
+    createKey: "Create a key there, then copy it when it is shown to you.",
+    note: "OpenRouter sells access to image models from Google, OpenAI, Microsoft and others through one account. It makes pictures once you have added some credit there; each costs a few cents, depending on the model.",
+  },
   // No key and no bill: a model on the person's own computer. Setup shows
   // different steps for it (public/lib/providers/local.js).
   local: {
@@ -44,7 +59,7 @@ export const DEFAULT_PROVIDER = "gemini";
 /**
  * Build the image provider for a person's settings. Any provider other than
  * the real ones gives the keyless collage stand-in.
- * @param {{provider: string, geminiKey?: string, geminiModel?: string, openaiKey?: string, openaiModel?: string, localUrl?: string, localModel?: string}} settings
+ * @param {{provider: string, geminiKey?: string, geminiModel?: string, openaiKey?: string, openaiModel?: string, openrouterKey?: string, openrouterModel?: string, localUrl?: string, localModel?: string}} settings
  */
 export function createProvider(settings) {
   switch (settings.provider) {
@@ -60,6 +75,12 @@ export function createProvider(settings) {
         apiKey: settings.openaiKey,
         model: settings.openaiModel || PROVIDERS.openai.defaultModel,
         quality: "medium",
+      });
+    case "openrouter":
+      if (!settings.openrouterKey) throw new ProviderError("Add your OpenRouter key in Setup first.");
+      return createOpenRouterProvider({
+        apiKey: settings.openrouterKey,
+        model: settings.openrouterModel || PROVIDERS.openrouter.defaultModel,
       });
     case "local":
       if (!settings.localModel) throw new ProviderError("Connect to the app on your computer in Setup first.");

@@ -31,6 +31,15 @@ test("an OpenAI key is checked the same way", async () => {
   assert.equal(await checkKey("openai", "bad", respond(401)), "rejected");
 });
 
+test("an OpenRouter key is checked by asking about the key itself", async () => {
+  const good = respond(200, { data: { label: "fitbash", limit_remaining: null } });
+  assert.equal(await checkKey("openrouter", "or-key", good), "ok");
+  assert.equal(good.calls[0].url, "https://openrouter.ai/api/v1/key");
+  assert.equal(good.calls[0].headers.get("authorization"), "Bearer or-key");
+  assert.equal(await checkKey("openrouter", "bad", respond(401, { error: { message: "User not found.", code: 401 } })), "rejected");
+  assert.equal(await checkKey("openrouter", "or-key", respond(502)), "unknown");
+});
+
 test("a Claude key is checked through the SDK", async () => {
   const good = respond(200, { data: [], has_more: false, first_id: null, last_id: null });
   assert.equal(await checkKey("claude", "c-key", good), "ok");
@@ -46,5 +55,6 @@ test("no connection means the answer is unknown, not a rejection", async () => {
   const offline = { fetchImpl: async () => { throw new TypeError("Failed to fetch"); } };
   assert.equal(await checkKey("gemini", "k", offline), "unknown");
   assert.equal(await checkKey("openai", "k", offline), "unknown");
+  assert.equal(await checkKey("openrouter", "k", offline), "unknown");
   assert.equal(await checkKey("claude", "k", offline), "unknown");
 });

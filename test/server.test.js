@@ -54,11 +54,12 @@ test("the page works from a subfolder on a static host", async () => {
     "style-src": ["'self'"],
     // Pictures may come from anywhere secure: a visitor can paste a link to one.
     "img-src": ["'self'", "data:", "blob:", "https:"],
-    // Requests may go only to the page's own site, the three AI providers, and an app on the visitor's own computer.
+    // Requests may go only to the page's own site, the AI services it offers, and an app on the visitor's own computer.
     "connect-src": [
       "'self'",
       "https://generativelanguage.googleapis.com",
       "https://api.openai.com",
+      "https://openrouter.ai",
       "https://api.anthropic.com",
       "http://localhost:*",
       "http://127.0.0.1:*",

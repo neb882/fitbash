@@ -27,6 +27,7 @@ import {
 } from "./lib/history.js";
 import { base64ToBytes } from "./lib/base64.js";
 import { watchForUpdates } from "./lib/update.js";
+import { beginConnect, finishConnect } from "./lib/openrouter-connect.js";
 
 const MAX_EDGE = 1536; // Item pictures are shrunk to this before they are sent.
 // The check is billed by picture area, and the generated outfit shows each
@@ -77,6 +78,10 @@ const ui = {
   localModel: $("local-model"),
   localDownload: $("local-download"),
   localUrl: $("local-url"),
+  providerConnect: $("provider-connect"),
+  providerConnectButton: $("provider-connect-button"),
+  providerModels: $("provider-models"),
+  providerModelChoice: $("provider-model-choice"),
   providerKeyLink: $("provider-key-link"),
   providerStep1: $("provider-step-1"),
   providerStep2: $("provider-step-2"),
@@ -108,6 +113,8 @@ const state = {
     geminiModel: "",
     openaiKey: "",
     openaiModel: "",
+    openrouterKey: "",
+    openrouterModel: "",
     claudeKey: "",
     claudeModel: "",
     localUrl: "",
@@ -183,6 +190,25 @@ function renderSettings() {
     ui.providerKey.value = imageKey();
     ui.providerModel.value = settings[`${settings.provider}Model`];
     ui.providerModel.placeholder = chosen.defaultModel;
+
+    // A service that offers several models gets a list to choose from; one that
+    // can hand over a key after a sign-in gets a button for that.
+    ui.providerConnect.hidden = !chosen.connect;
+    ui.providerModels.hidden = !chosen.models;
+    if (chosen.models) {
+      const current = settings[`${settings.provider}Model`] || chosen.defaultModel;
+      const listed = chosen.models.some((model) => model.id === current);
+      ui.providerModelChoice.replaceChildren(
+        ...chosen.models.map((model, index) =>
+          el("option", {
+            value: model.id,
+            text: `${model.label}${index === 0 ? " · suggested" : ""}${model.maxPieces < MAX_ITEMS ? ` · up to ${model.maxPieces} pieces` : ""}`,
+          }),
+        ),
+        ...(listed ? [] : [el("option", { value: current, text: `${current} · set under Advanced` })]),
+      );
+      ui.providerModelChoice.value = current;
+    }
   }
   ui.claudeKey.value = settings.claudeKey;
   ui.claudeModel.value = settings.claudeModel;
@@ -421,6 +447,19 @@ function wireSettings() {
     });
   bind(ui.providerKey, () => `${state.settings.provider}Key`);
   bind(ui.providerModel, () => `${state.settings.provider}Model`);
+  ui.providerModelChoice.addEventListener("change", () => {
+    state.settings[`${state.settings.provider}Model`] = ui.providerModelChoice.value;
+    saveSettings();
+    renderSettings();
+  });
+  ui.providerConnectButton.addEventListener("click", async () => {
+    try {
+      // The visitor leaves for OpenRouter and comes back to this same page.
+      await beginConnect({ callbackUrl: location.origin + location.pathname });
+    } catch {
+      setKeyStatus("This browser won't let the page start a sign-in. Do it by hand with the steps below.", true);
+    }
+  });
   bind(ui.claudeKey, () => "claudeKey");
   bind(ui.claudeModel, () => "claudeModel");
   const providerStatus = watchKey(ui.providerKey, ui.providerKeyStatus, () => state.settings.provider);
@@ -435,12 +474,41 @@ function wireSettings() {
     renderSettings();
   });
   ui.forget.addEventListener("click", () => {
-    state.settings.geminiKey = state.settings.openaiKey = state.settings.claudeKey = "";
+    for (const key of Object.keys(state.settings)) if (key.endsWith("Key")) state.settings[key] = "";
     providerStatus.clear();
     claudeStatus.clear();
     saveSettings();
     renderSettings();
   });
+}
+
+function setKeyStatus(text, isError = false) {
+  ui.providerKeyStatus.textContent = text;
+  ui.providerKeyStatus.classList.toggle("error", isError);
+  ui.providerKeyStatus.classList.toggle("good", !isError && Boolean(text));
+}
+
+/** If the visitor is coming back from signing in at OpenRouter, take the key it hands over. */
+async function finishOpenRouterConnect() {
+  if (!new URLSearchParams(location.search).has("code")) return;
+  let key = null;
+  let failed = false;
+  try {
+    key = await finishConnect();
+  } catch {
+    failed = true;
+  }
+  // The one-time code has done its work either way; take it out of the address bar.
+  history.replaceState(null, "", location.pathname);
+  if (!key && !failed) return; // a ?code= that isn't ours
+
+  state.settings.provider = "openrouter";
+  if (key) state.settings.openrouterKey = key;
+  saveSettings();
+  renderSettings();
+  ui.settings.open = true;
+  if (key) setKeyStatus("Connected to OpenRouter. This key works.");
+  else setKeyStatus("The sign-in didn't finish. Press Connect to try again, or use the steps below.", true);
 }
 
 function openSetup() {
@@ -1045,6 +1113,8 @@ async function start() {
     }),
   );
   renderItems();
+
+  await finishOpenRouterConnect();
 
   // First visit: show the setup steps instead of hiding them behind a click.
   if (!ready()) ui.settings.open = true;

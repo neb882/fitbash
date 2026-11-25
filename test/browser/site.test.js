@@ -9,6 +9,7 @@ import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import zlib from "node:zlib";
+import { createHash } from "node:crypto";
 import { chromium, devices } from "playwright";
 import { AxeBuilder } from "@axe-core/playwright";
 
@@ -115,7 +116,7 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
   if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   page.setDefaultTimeout(15_000); // A page that never comes up should fail a test quickly, not hang it.
-  const seen = { errors: [], failed: [], google: [], openai: [], claude: [], local: [] };
+  const seen = { errors: [], failed: [], google: [], openai: [], openrouter: [], signIns: [], claude: [], local: [] };
   page.on("pageerror", (error) => seen.errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error" && /Content Security Policy/i.test(message.text())) seen.errors.push(message.text());
@@ -158,6 +159,38 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
     });
     if (services.openaiError) return json(route, ...services.openaiError);
     json(route, 200, { data: [{ b64_json: OUTFIT_RIGHT }] });
+  });
+
+  await page.route("https://openrouter.ai/**", (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === "OPTIONS") return preflight(route);
+    // The sign-in page: stands in for a visitor who signs in and approves at once.
+    if (url.pathname === "/auth") {
+      seen.signIns.push(Object.fromEntries(url.searchParams));
+      const back = new URL(url.searchParams.get("callback_url"));
+      back.searchParams.set("code", "ONE-TIME");
+      return route.fulfill({ status: 302, headers: { location: back.href } });
+    }
+    // The trade of the one-time code for a key, honoured only with the secret whose fingerprint started the sign-in.
+    if (url.pathname === "/api/v1/auth/keys") {
+      const body = request.postDataJSON();
+      const fingerprint = createHash("sha256").update(String(body.code_verifier)).digest("base64url");
+      const honoured = !services.signInFails && body.code === "ONE-TIME" && seen.signIns.at(-1)?.code_challenge === fingerprint;
+      return honoured ? json(route, 200, { key: "GOOD-OR" }) : json(route, 400, { error: { message: "Invalid code", code: 400 } });
+    }
+    const authorization = request.headers()["authorization"];
+    if (url.pathname === "/api/v1/key") {
+      return authorization === "Bearer GOOD-OR"
+        ? json(route, 200, { data: { label: "fitbash", limit_remaining: null } })
+        : json(route, 401, { error: { message: "User not found.", code: 401 } });
+    }
+    if (url.pathname === "/api/v1/images") {
+      seen.openrouter.push({ authorization, body: request.postDataJSON() });
+      if (services.openrouterError) return json(route, ...services.openrouterError);
+      return json(route, 200, { data: [{ b64_json: OUTFIT_RIGHT, media_type: "image/png" }] });
+    }
+    route.fulfill({ status: 404, headers: CORS, body: "" });
   });
 
   await page.route("https://api.anthropic.com/**", (route) => {
@@ -730,7 +763,8 @@ test("where the browser won't store anything, pictures are still made and the li
 for (const scheme of ["light", "dark"]) {
   test(`the page passes automated accessibility checks in the ${scheme} colours`, options, async (t) => {
     const services = { pictures: [OUTFIT_WRONG, OUTFIT_RIGHT], verdicts: [FAIL, PASS], local: { catalog: localCatalog() } };
-    const { page } = await open(t, { context: { colorScheme: scheme }, services });
+    // Motion off, so colours are measured as they settle and not half-way through a fade.
+    const { page } = await open(t, { context: { colorScheme: scheme, reducedMotion: "reduce" }, services });
     const problems = async (state) => {
       const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       return violations.map((v) => `${state}: ${v.id} (${v.nodes.length}) ${v.nodes[0].target.join(" ")} — ${v.nodes[0].failureSummary.split("\n")[1]?.trim()}`);
@@ -748,6 +782,9 @@ for (const scheme of ["light", "dark"]) {
     await page.click("#local-connect");
     await page.waitForSelector("#local-models:not([hidden])");
     found.push(...(await problems("local model steps")));
+
+    await page.click('#providers input[value="openrouter"]', { force: true });
+    found.push(...(await problems("the one-account service, with its connect button and model list")));
 
     await page.click('#providers input[value="gemini"]', { force: true });
     await page.fill("#provider-key", "GOOD-KEY");
@@ -865,4 +902,106 @@ test("changing the local app's address makes Setup unfinished again", options, a
   assert.match(await text(page, "#settings-summary"), /Do this once/);
   const stored = JSON.parse(await page.evaluate(() => localStorage.getItem("fitbash-settings")));
   assert.equal(stored.localModel, "");
+});
+
+test("OpenRouter with a pasted key: choose a model, make a picture, and hear plainly when something is in the way", options, async (t) => {
+  const services = {};
+  const { page, seen } = await open(t, { services });
+  await page.click('#providers input[value="openrouter"]', { force: true });
+  assert.equal(await page.isVisible("#provider-connect"), true);
+  assert.equal(await page.getAttribute("#provider-key-link", "href"), "https://openrouter.ai/keys");
+  assert.match(await text(page, "#provider-note"), /once you have added some credit/);
+
+  await page.fill("#provider-key", "WRONG");
+  await untilText(page, "#provider-key-status", "wasn't accepted");
+  await page.fill("#provider-key", "GOOD-OR");
+  await untilText(page, "#provider-key-status", "This key works");
+  assert.equal(await text(page, "#settings-summary"), "OpenRouter connected");
+
+  // The suggested model is chosen to begin with; another can be picked from the list.
+  assert.equal(await page.inputValue("#provider-model-choice"), "google/gemini-nano-banana-2.1");
+  assert.match(await page.textContent("#provider-model-choice option:checked"), /suggested/);
+  await page.selectOption("#provider-model-choice", "openai/gpt-image-2.5-sunburst");
+
+  await addFiles(page, [TEE, JEANS]);
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  const [call] = seen.openrouter;
+  assert.equal(call.authorization, "Bearer GOOD-OR");
+  const { input_references: references, prompt, ...rest } = call.body;
+  assert.deepEqual(rest, { model: "openai/gpt-image-2.5-sunburst", aspect_ratio: "1:1", n: 1, response_format: "b64_json", quality: "medium" });
+  assert.equal(references.length, 2);
+  assert.match(references[0].image_url.url, /^data:image\/jpeg;base64,/);
+  assert.match(prompt, /complete outfit/);
+  await page.waitForSelector(".past");
+  assert.equal(seen.google.length + seen.openai.length, 0);
+
+  // A model that takes fewer pieces says so before any money is spent.
+  await page.selectOption("#provider-model-choice", "microsoft/mai-image-2.7");
+  assert.match(await page.textContent("#provider-model-choice option:checked"), /up to 5 pieces/);
+  await addFiles(page, Array(4).fill(TEE));
+  await page.click("#generate");
+  await untilText(page, "#progress", "takes at most 5 pieces");
+  assert.equal(seen.openrouter.length, 1);
+
+  // An account with no credit is told so.
+  await page.selectOption("#provider-model-choice", "google/gemini-nano-banana-2.1");
+  services.openrouterError = [402, { error: { code: 402, message: "Insufficient credits", metadata: { limit_source: "openrouter_credits" } } }];
+  await page.click("#generate");
+  await untilText(page, "#progress", "needs credit");
+
+  // The choice of model is remembered, and a name typed under Advanced shows in the list.
+  await reloaded(page);
+  assert.equal(await page.inputValue("#provider-model-choice"), "google/gemini-nano-banana-2.1");
+  await page.click("#settings > summary");
+  await page.click(".sub:last-of-type summary");
+  await page.fill("#provider-model", "someone/another-model");
+  assert.equal(await page.inputValue("#provider-model-choice"), "someone/another-model");
+
+  // "Forget my keys" forgets this one too.
+  await page.click("#forget");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("fitbash-settings"))).openrouterKey, "");
+  assert.match(await text(page, "#settings-summary"), /Do this once/);
+  assert.deepEqual(seen.errors, []);
+});
+
+test("Connect OpenRouter: sign in there, come back with the key filled in", options, async (t) => {
+  const services = {};
+  const { page, seen } = await open(t, { services });
+  await page.click('#providers input[value="openrouter"]', { force: true });
+
+  await page.click("#provider-connect-button");
+  await untilText(page, "#provider-key-status", "Connected to OpenRouter");
+  // The visitor was sent to OpenRouter with this page as the way back, and nothing secret in the address.
+  const [signIn] = seen.signIns;
+  assert.equal(signIn.callback_url, `${staticSite.origin}/fitbash/`);
+  assert.equal(signIn.code_challenge_method, "S256");
+  assert.match(signIn.code_challenge, /^[A-Za-z0-9_-]{43}$/);
+  // Back on the page: the key is in place, Setup is open on it, and the one-time code is gone from the address bar.
+  assert.equal(await page.inputValue("#provider-key"), "GOOD-OR");
+  assert.equal(await text(page, "#settings-summary"), "OpenRouter connected");
+  assert.equal(await page.evaluate(() => document.querySelector("#settings").open), true);
+  assert.equal(await page.evaluate(() => location.search), "");
+  assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+
+  await addFiles(page, TEE);
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  assert.equal(seen.openrouter[0].authorization, "Bearer GOOD-OR");
+
+  // A sign-in that OpenRouter does not honour leaves the old key alone and says what to do.
+  services.signInFails = true;
+  await page.click("#provider-connect-button");
+  await untilText(page, "#provider-key-status", "didn't finish");
+  assert.equal(await page.inputValue("#provider-key"), "GOOD-OR");
+  assert.equal(await page.evaluate(() => location.search), "");
+  assert.deepEqual(seen.errors, []);
+});
+
+test("an address that merely carries a code starts nothing", options, async (t) => {
+  const { page, seen } = await open(t, { url: `${staticSite.origin}/fitbash/?code=STRAY` });
+  assert.equal(await page.evaluate(() => location.search), "");
+  assert.equal(await page.inputValue("#provider-key"), "");
+  assert.equal(await page.evaluate(() => document.querySelector('#providers input:checked').value), "gemini");
+  assert.equal(seen.signIns.length, 0);
 });
