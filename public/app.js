@@ -16,6 +16,16 @@ import {
   startLocalDownload,
 } from "./lib/providers/local.js";
 import { TIERS, guessTier, readGraphicsName, tidyName } from "./lib/hardware.js";
+import {
+  MAX_OUTFITS,
+  clearOutfits,
+  describePieces,
+  listOutfits,
+  outfitPieces,
+  removeOutfit,
+  saveOutfit,
+} from "./lib/history.js";
+import { base64ToBytes } from "./lib/base64.js";
 
 const MAX_EDGE = 1536; // Item pictures are shrunk to this before they are sent.
 // The check is billed by picture area, and the generated outfit shows each
@@ -76,6 +86,14 @@ const ui = {
   forget: $("forget"),
   progress: $("progress"),
   attempts: $("attempts"),
+  history: $("history"),
+  historyNote: $("history-note"),
+  historyList: $("history-list"),
+  historyClear: $("history-clear"),
+  viewer: $("viewer"),
+  viewerPicture: $("viewer-picture"),
+  viewerCaption: $("viewer-caption"),
+  viewerClose: $("viewer-close"),
 };
 
 const state = {
@@ -745,9 +763,16 @@ async function generate() {
       fillGaps: ui.fill.checked,
       notes: ui.notes.value,
     };
+    const made = new Map(); // attempt number to its picture and review, to keep the best one afterwards
+    let best = 0;
     for await (const event of runOutfit(request, { provider, critic, maxAttempts })) {
+      if (event.type === "image") made.set(event.attempt, { image: event.image });
+      if (event.type === "review") made.get(event.attempt).review = event.review;
+      if (event.type === "done") best = event.best;
       handleEvent(event, maxAttempts);
     }
+    // A stand-in collage isn't an outfit worth keeping.
+    if (provider.name !== "mock" && made.has(best)) await keepOutfit(made.get(best), request);
   } catch (error) {
     if (!(error instanceof ProviderError)) console.error(error);
     setProgress(error instanceof ProviderError ? error.message : "Something went wrong while making the picture.", true);
@@ -756,6 +781,140 @@ async function generate() {
     state.busy = false;
     updateGenerate();
   }
+}
+
+// ---- past outfits ----------------------------------------------------------
+
+const EXTENSIONS = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+let pastUrls = []; // object URLs of the pictures on show, released when the grid is redrawn
+
+/** Keep the outfit just made. The picture is already on the page, so a failure here costs nothing. */
+async function keepOutfit({ image, review }, request) {
+  try {
+    const picture = new Blob([base64ToBytes(image.data)], { type: image.mimeType });
+    const checked = review?.status === "reviewed" ? { verdict: review.verdict, score: review.score } : {};
+    await saveOutfit(
+      { picture, labels: request.items.map((item) => item.label ?? ""), style: request.style, ...checked },
+      request.items,
+    );
+    await renderHistory();
+  } catch {
+    // No storage (a private window) or no room left.
+  }
+}
+
+function pastCard(outfit) {
+  const url = URL.createObjectURL(outfit.picture);
+  pastUrls.push(url);
+  const pieces = describePieces(outfit.labels);
+  const when = new Date(outfit.createdAt).toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const verdict = outfit.verdict === "pass" ? "matches your pieces" : outfit.verdict === "fail" ? "off in places" : "";
+  const about = [STYLES[outfit.style]?.label, when, verdict].filter(Boolean).join(" · ");
+
+  return el("li", { class: "past", "data-outfit": String(outfit.id) }, [
+    el(
+      "button",
+      {
+        class: "past-picture",
+        type: "button",
+        "aria-label": `Show larger: ${pieces}`,
+        onclick: () => {
+          ui.viewerPicture.src = url;
+          ui.viewerPicture.alt = `Outfit: ${pieces}`;
+          ui.viewerCaption.textContent = `${pieces} · ${about}`;
+          ui.viewer.showModal();
+        },
+      },
+      [el("img", { src: url, alt: `Outfit: ${pieces}`, loading: "lazy" })],
+    ),
+    el("p", { class: "past-pieces", text: pieces }),
+    el("p", { class: "muted", text: about }),
+    el("div", { class: "past-actions" }, [
+      el("button", { type: "button", class: "quiet", text: "Use these pieces", onclick: () => reusePieces(outfit) }),
+      el("a", {
+        class: "download",
+        href: url,
+        download: `fitbash-outfit.${EXTENSIONS[outfit.picture.type] ?? "png"}`,
+        text: "Download",
+      }),
+      el("button", {
+        type: "button",
+        class: "quiet",
+        text: "Remove",
+        "aria-label": `Remove: ${pieces}`,
+        onclick: async () => {
+          await removeOutfit(outfit.id);
+          renderHistory();
+        },
+      }),
+    ]),
+  ]);
+}
+
+async function renderHistory() {
+  let outfits;
+  try {
+    outfits = await listOutfits();
+  } catch {
+    // The browser won't store anything here (a private window, say). The page works without the list.
+    ui.history.hidden = true;
+    return;
+  }
+  for (const url of pastUrls) URL.revokeObjectURL(url);
+  pastUrls = [];
+  ui.history.hidden = outfits.length === 0;
+  ui.historyNote.textContent = `The outfits you made here, newest first. They are kept in this browser only, up to ${MAX_OUTFITS}.`;
+  ui.historyList.replaceChildren(...outfits.map(pastCard));
+}
+
+/** Put a past outfit's pieces and look back into the page, ready to change and make again. */
+async function reusePieces(outfit) {
+  const pieces = await outfitPieces(outfit.id).catch(() => []);
+  if (pieces.length === 0) return setAddStatus("Those pieces are no longer stored.", true);
+  state.items = pieces.map(({ label, mimeType, data, review }) => ({
+    id: state.nextId++,
+    label,
+    mimeType,
+    data,
+    review,
+    preview: `data:${mimeType};base64,${data}`,
+  }));
+  renderItems();
+  const look = document.querySelector(`input[name="style"][value="${outfit.style}"]`);
+  if (look) look.checked = true;
+  setAddStatus(`Loaded the ${pieces.length === 1 ? "piece" : `${pieces.length} pieces`} of that outfit. Change what you like and make it again.`);
+  $("pieces-heading").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function wireHistory() {
+  // "Remove all" asks once more before it does anything.
+  let armed;
+  const disarm = () => {
+    clearTimeout(armed);
+    armed = undefined;
+    ui.historyClear.textContent = "Remove all";
+  };
+  ui.historyClear.addEventListener("click", async () => {
+    if (!armed) {
+      ui.historyClear.textContent = "Really remove all?";
+      armed = setTimeout(disarm, 5000);
+      return;
+    }
+    disarm();
+    await clearOutfits().catch(() => {});
+    renderHistory();
+  });
+
+  ui.viewerClose.addEventListener("click", () => ui.viewer.close());
+  // A click on the dimmed area around the picture closes it too.
+  ui.viewer.addEventListener("click", (event) => {
+    if (event.target === ui.viewer) ui.viewer.close();
+  });
 }
 
 // ---- wiring ----------------------------------------------------------------
@@ -834,6 +993,8 @@ async function start() {
   loadSettings();
   wire();
   wireSettings();
+  wireHistory();
+  renderHistory();
   renderSettings();
   ui.styles.replaceChildren(
     ...Object.entries(STYLES).map(([id, style]) => {

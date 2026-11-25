@@ -202,7 +202,24 @@
         <p id="progress" class="status" role="status">Your outfit picture shows up here.</p>
         <ol id="attempts" class="attempts"></ol>
       </section>
+
+      <section id="history" class="panel" aria-labelledby="history-heading" hidden>
+        <div class="panel-head">
+          <h2 id="history-heading">Past outfits</h2>
+          <button id="history-clear" type="button" class="quiet">Remove all</button>
+        </div>
+        <p id="history-note" class="muted"></p>
+        <ul id="history-list" class="history"></ul>
+      </section>
     </main>
+
+    <dialog id="viewer" class="viewer" aria-labelledby="viewer-caption">
+      <img id="viewer-picture" alt="" />
+      <div class="viewer-foot">
+        <p id="viewer-caption"></p>
+        <button id="viewer-close" type="button" class="quiet">Close</button>
+      </div>
+    </dialog>
 
     <script type="module" src="app.js"></script>
   </body>

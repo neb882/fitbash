@@ -77,11 +77,22 @@ Large retailers often block automated visits, in which case the page says so. Co
 
 An outfit takes up to 8 pieces. Pictures are shrunk to 1536 pixels on the long side before they go to the image service.
 
+## Past outfits
+
+Each outfit picture you make is kept under **Past outfits** at the bottom of the page, newest first, so you can compare combinations side by side. For each one you can:
+
+- open it larger,
+- download it,
+- press **Use these pieces** to put its items and look back into the page, swap one, and make it again,
+- remove it, or remove them all.
+
+The page keeps the newest 24 and drops older ones. They are stored in your browser only, together with the item pictures that made them, and never sent anywhere. Clearing the site's data in your browser removes them, and a private window keeps nothing.
+
 ## Your keys and pictures
 
 - Keys are saved in your browser's local storage and nowhere else. **Forget my keys** in Setup removes them.
 - Requests go straight from your browser to the provider the key belongs to. The page's content security policy allows it to contact only itself, Google, OpenAI, Anthropic and an app on your own computer, and to run only its own scripts.
-- Nothing is stored by fitbash: no accounts, no database, no analytics. Your item pictures go to the image provider you chose, and to Anthropic if the quality check is on, under those providers' terms. With a model on your own computer and the check off, they go nowhere.
+- fitbash has no server of its own that stores anything: no accounts, no database, no analytics. Past outfits stay in your browser. Your item pictures go to the image provider you chose, and to Anthropic if the quality check is on, under those providers' terms. With a model on your own computer and the check off, they go nowhere.
 - A key kept in a browser can be read by anyone with access to that browser profile. Use keys with a spending limit, and don't save them on a shared computer.
 
 ## How it is put together
@@ -95,6 +106,7 @@ public/                      the whole app; this folder is what GitHub Pages ser
   lib/keycheck.js            tells a person whether a pasted key works, at no cost
   lib/providers/             gemini, openai, local and mock image models behind one generate() call
   lib/hardware.js            guesses the graphics card's size tier, to suggest a local model
+  lib/history.js             past outfits, kept in the browser's own storage
   vendor/anthropic-sdk.js    browser build of the official Anthropic SDK (generated, see below)
 server.js                    optional local server: serves public/ and adds link lookup
 src/extract.js               product link to candidate pictures
@@ -118,7 +130,7 @@ npm run test:browser   # the page in a real browser (first run: npx playwright i
 npm run test:all       # both
 ```
 
-The browser tests open the page the way GitHub Pages serves it and use it as a visitor would: first-time setup, pasting keys, adding pictures, making an outfit, the check and its redo, and a phone-sized screen. The three AI services are replaced by canned answers, so the tests need no keys and reach nothing outside your machine.
+The browser tests open the page the way GitHub Pages serves it and use it as a visitor would: first-time setup, pasting keys, adding pictures, making an outfit, the check and its redo, a model on the visitor's own computer, past outfits, and a phone-sized screen. The three AI services are replaced by canned answers, so the tests need no keys and reach nothing outside your machine.
 
 Every push runs all of them on GitHub. A push to `main` publishes the site only if they pass.
 
@@ -126,4 +138,4 @@ Every push runs all of them on GitHub. A push to `main` publishes the site only 
 
 - Try the outfit on a photo of yourself.
 - Suggest pieces that would complete the outfit, with links.
-- Save and share outfits.
+- Share an outfit with someone else.

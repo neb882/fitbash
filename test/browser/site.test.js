@@ -109,8 +109,9 @@ after(async () => {
  * Open the page with stand-ins for the three services. `services` steers their
  * answers and collects what the page sent them.
  */
-async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, services = {} } = {}) {
+async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, services = {}, init } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, ...context });
+  if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   page.setDefaultTimeout(15_000); // A page that never comes up should fail a test quickly, not hang it.
   const seen = { errors: [], failed: [], google: [], openai: [], claude: [], local: [] };
@@ -564,5 +565,146 @@ test("a missing local app says so, and one that refuses this website shows how t
   await page.click('#providers input[value="gemini"]', { force: true });
   assert.equal(await page.isVisible("#key-setup"), true);
   assert.equal(await page.isHidden("#local-setup"), true);
+  assert.deepEqual(seen.errors, []);
+});
+
+const reloaded = async (page) => {
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+};
+const pastOutfits = (page) =>
+  page.$$eval(".past", (nodes) =>
+    nodes.map((node) => `${node.querySelector(".past-pieces").textContent} | ${node.querySelector(".muted").textContent}`),
+  );
+
+test("outfits made here are kept in this browser, and can be looked at, reused and removed", options, async (t) => {
+  const services = {};
+  const { page, seen } = await open(t, { services });
+
+  // A stand-in collage is not an outfit: nothing is kept until a real picture is made.
+  await addFiles(page, [TEE, JEANS]);
+  await page.fill(".item input", "frog tee");
+  await page.click("#generate");
+  await untilText(page, "#progress", "only a collage");
+  assert.equal(await page.isHidden("#history"), true);
+
+  await page.fill("#provider-key", "GOOD-KEY");
+  await page.check('input[name="style"][value="model"]', { force: true });
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  await page.waitForSelector("#history:not([hidden]) .past");
+  assert.equal((await pastOutfits(page)).length, 1);
+  assert.match((await pastOutfits(page))[0], /^frog tee and 1 more \| On a model · /);
+
+  // A run with a redo keeps one outfit, the better picture, with the check's verdict.
+  services.pictures = [null, OUTFIT_WRONG, OUTFIT_RIGHT]; // the first slot was the run above
+  services.verdicts = [FAIL, PASS];
+  await page.click(".sub summary");
+  await page.fill("#claude-key", "GOOD-CLAUDE");
+  await page.check('input[name="style"][value="flatlay"]', { force: true });
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  await page.waitForFunction(() => document.querySelectorAll(".past").length === 2);
+  const [newest, older] = await pastOutfits(page);
+  assert.match(newest, /\| Flat lay · .* · matches your pieces$/);
+  assert.match(older, /\| On a model · /);
+  const keptPicture = await page.evaluate(async () => {
+    const [latest] = await (await import("./lib/history.js")).listOutfits();
+    return btoa(String.fromCharCode(...new Uint8Array(await latest.picture.arrayBuffer())));
+  });
+  assert.equal(keptPicture, OUTFIT_RIGHT);
+
+  // They are still there after the page is closed and opened again.
+  await reloaded(page);
+  await page.waitForFunction(() => document.querySelectorAll(".past").length === 2);
+  assert.equal(await page.locator(".item").count(), 0);
+
+  await page.click(".past:first-child .past-picture");
+  assert.equal(await page.evaluate(() => document.querySelector("#viewer").open), true);
+  assert.match(await text(page, "#viewer-caption"), /^frog tee and 1 more · Flat lay/);
+  await page.click("#viewer-close");
+  assert.equal(await page.evaluate(() => document.querySelector("#viewer").open), false);
+  assert.match(await page.getAttribute(".past:first-child .download", "href"), /^blob:/);
+  assert.equal(await page.getAttribute(".past:first-child .download", "download"), "fitbash-outfit.png");
+
+  // "Use these pieces" brings back the pieces and the look, ready to make again.
+  await page.click(".past:last-child .past-actions button");
+  await page.waitForFunction(() => document.querySelectorAll(".item").length === 2);
+  assert.equal(await page.inputValue(".item input"), "frog tee");
+  assert.equal(await page.isChecked('input[name="style"][value="model"]'), true);
+  assert.match(await text(page, "#add-status"), /Loaded the 2 pieces/);
+  const sentBefore = seen.google.length;
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  assert.equal(seen.google.length, sentBefore + 1);
+  const again = seen.google.at(-1).body;
+  assert.equal(again.input.filter((part) => part.type === "image").length, 2);
+  assert.deepEqual(again.input[1], seen.google[0].body.input[1]); // the very same picture, not a re-compressed copy
+  assert.equal(seen.claude.at(-1).body.messages[0].content.filter((block) => block.type === "image").length, 3);
+  await page.waitForFunction(() => document.querySelectorAll(".past").length === 3);
+
+  await page.click(".past:first-child .past-actions button:last-child");
+  await page.waitForFunction(() => document.querySelectorAll(".past").length === 2);
+
+  // Removing everything takes a second press.
+  await page.click("#history-clear");
+  assert.equal(await text(page, "#history-clear"), "Really remove all?");
+  assert.equal(await page.locator(".past").count(), 2);
+  await page.click("#history-clear");
+  await page.waitForSelector("#history", { state: "hidden" });
+  await reloaded(page);
+  assert.equal(await page.isHidden("#history"), true);
+  assert.deepEqual(seen.errors, []);
+});
+
+test("only the newest outfits are stored, and a dropped outfit's pieces go with it", options, async (t) => {
+  const { page } = await open(t);
+  const result = await page.evaluate(async () => {
+    const history = await import("./lib/history.js");
+    const ids = [];
+    for (let i = 1; i <= history.MAX_OUTFITS + 2; i++) {
+      const piece = { label: `piece ${i}`, mimeType: "image/jpeg", data: "AAAA" };
+      ids.push(await history.saveOutfit({ picture: new Blob(["x"]), labels: [`outfit ${i}`], style: "flatlay" }, [piece]));
+    }
+    await history.removeOutfit(ids.at(-2));
+    const removedPieces = (await history.outfitPieces(ids.at(-2))).length;
+    await history.saveOutfit({ picture: new Blob(["x"]), labels: ["outfit 27"], style: "flatlay" }, []);
+    const kept = await history.listOutfits();
+    return {
+      removedPieces,
+      max: history.MAX_OUTFITS,
+      count: kept.length,
+      newest: kept[0].labels[0],
+      oldest: kept.at(-1).labels[0],
+      droppedPieces: (await history.outfitPieces(ids[0])).length,
+      keptPieces: (await history.outfitPieces(ids.at(-1))).map((piece) => piece.label),
+    };
+  });
+  assert.deepEqual(result, {
+    removedPieces: 0,
+    max: 24,
+    count: 24,
+    newest: "outfit 27",
+    oldest: "outfit 3",
+    droppedPieces: 0,
+    keptPieces: ["piece 26"],
+  });
+});
+
+test("where the browser won't store anything, pictures are still made and the list stays away", options, async (t) => {
+  const init = () => {
+    Object.defineProperty(window, "indexedDB", {
+      get() {
+        throw new Error("storage is blocked");
+      },
+    });
+  };
+  const { page, seen } = await open(t, { init });
+  await page.fill("#provider-key", "GOOD-KEY");
+  await addFiles(page, TEE);
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  assert.equal(await page.locator(".attempt img").count(), 1);
+  assert.equal(await page.isHidden("#history"), true);
   assert.deepEqual(seen.errors, []);
 });
