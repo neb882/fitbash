@@ -18,6 +18,8 @@ test("fill-gaps and worn styles change the rule about extra pieces", () => {
   assert.match(strictFlat, /Show only the supplied items/);
   assert.match(strictWorn, /fully dressed/);
   assert.match(filled, /add a plain one/);
+  // Seen with the real service: left to itself it dressed a lone tee with a cap and a watch.
+  assert.match(filled, /no hats, bags, watches/);
 });
 
 test("notes and feedback are included only when given", () => {
@@ -30,4 +32,11 @@ test("notes and feedback are included only when given", () => {
 
 test("an unknown style falls back to the default scene", () => {
   assert.ok(buildPrompt({ items, style: "hologram", fillGaps: true }).includes(STYLES.flatlay.scene));
+});
+
+test("a flat lay is upright and asks for every piece whole", () => {
+  // Seen with the real service: in a square frame the jeans came out shortened, with the shoes laid on top.
+  assert.equal(STYLES.flatlay.aspectRatio, "3:4");
+  assert.match(STYLES.flatlay.scene, /whole and at its true length/);
+  assert.match(STYLES.flatlay.scene, /lying on top of another/);
 });

@@ -166,3 +166,19 @@ test("Google's refusal of a key with no billing is explained in plain words", as
   const busy = createGeminiProvider({ apiKey: "k", model: "m", fetchImpl: fakeFetch(429, { error: { message: "Resource has been exhausted (e.g. check quota)." } }).impl });
   await assert.rejects(busy.generate({ prompt: "p", images, aspectRatio: "1:1" }), (error) => /too many requests/.test(error.message) && !/free tier/.test(error.message));
 });
+
+test("Google's real picture answer is read: a thinking step, then the picture", () => {
+  // The shape the real service sent (2026-11-25), with the long values cut down.
+  const real = {
+    id: "v1_abc",
+    status: "completed",
+    usage: { total_tokens: 3544, total_output_tokens: 1399, total_thought_tokens: 792 },
+    steps: [
+      { signature: "Eqm8fwqlvH8B", type: "thought" },
+      { content: [{ data: "/9j/4AAQSkZJRgABAQ", mime_type: "image/jpeg", type: "image" }], type: "model_output" },
+    ],
+    object: "interaction",
+    model: "gemini-nano-banana-2.1",
+  };
+  assert.deepEqual(parseGeminiImage(real), { mimeType: "image/jpeg", data: "/9j/4AAQSkZJRgABAQ" });
+});

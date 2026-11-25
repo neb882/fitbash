@@ -10,7 +10,8 @@ Written 2026-11-25; change this list as runs are made.
 
 - Proven against the real services, with deliberately wrong keys: the key checks for Google, OpenAI and OpenRouter, and the page's handling of Google's "key not valid" answer to a picture request.
 - Proven with a real Google key that had no billing (2026-11-25): the key check passes, the picture request reaches the service in a form it accepts, and its refusal ("limit: 0 ... on Free Tier", HTTP 429) is shown as the page's billing advice. No picture was made and nothing was spent.
-- Not yet proven: a single real outfit picture from any service, and so how Google's picture answer is read; the OpenRouter sign-in round trip; the Claude check; a model on a visitor's own computer.
+- Proven with the same key once billing was on (2026-11-25): ten real pictures from `gemini-nano-banana-2.1`, six of them outfits made through the page by the runner. Google's answer is read correctly (a `thought` step, then a `model_output` step holding the picture as JPEG). Prints, lettering, colours and details were kept in every outfit. Two faults in the instruction were found and fixed (accessories nobody supplied; jeans shortened in a square flat lay), and both cases were run again and came out right. The main README, "Which models, and why", has the account.
+- Not yet proven: a picture from OpenAI or OpenRouter; the OpenRouter sign-in round trip; the Claude check; a model on a visitor's own computer; photos of the owner's own clothes (a hanger, a person, a cluttered background).
 
 ## Before a run
 

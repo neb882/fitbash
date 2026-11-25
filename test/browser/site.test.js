@@ -568,7 +568,7 @@ test("a free model on the visitor's own computer: connect, download the suggeste
   await addFiles(page, [TEE, JEANS]);
   await page.click("#generate");
   await untilText(page, "#progress", "Done.");
-  assert.deepEqual(seen.local[1], { model: "Flux-2-Klein-4B", size: "1024x1024", pictures: 2 });
+  assert.deepEqual(seen.local[1], { model: "Flux-2-Klein-4B", size: "896x1152", pictures: 2 });
   assert.match(await page.getAttribute(".attempt img", "src"), /^data:image\/png;base64,/);
   assert.equal(seen.google.length + seen.openai.length + seen.claude.length, 0);
 
@@ -930,7 +930,7 @@ test("OpenRouter with a pasted key: choose a model, make a picture, and hear pla
   const [call] = seen.openrouter;
   assert.equal(call.authorization, "Bearer GOOD-OR");
   const { input_references: references, prompt, ...rest } = call.body;
-  assert.deepEqual(rest, { model: "openai/gpt-image-2.5-sunburst", aspect_ratio: "1:1", n: 1, response_format: "b64_json", quality: "medium" });
+  assert.deepEqual(rest, { model: "openai/gpt-image-2.5-sunburst", aspect_ratio: "3:4", n: 1, response_format: "b64_json", quality: "medium" });
   assert.equal(references.length, 2);
   assert.match(references[0].image_url.url, /^data:image\/jpeg;base64,/);
   assert.match(prompt, /complete outfit/);

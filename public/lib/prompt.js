@@ -3,9 +3,10 @@
 export const STYLES = {
   flatlay: {
     label: "Flat lay",
-    aspectRatio: "1:1",
+    // Upright, so a top, bottoms and shoes each have room at their true length.
+    aspectRatio: "3:4",
     scene:
-      "Arrange the pieces as a flat lay, the way an outfit is laid out on a bed: seen from directly above on a plain light background, top above bottoms, shoes and accessories beside them, nothing overlapping enough to hide a print.",
+      "Arrange the pieces as a flat lay, the way an outfit is laid out on a bed: seen from directly above on a plain light background, top above bottoms, shoes below or beside the bottoms. Show each piece whole and at its true length and proportions: none cropped, shortened, folded away or lying on top of another.",
   },
   mannequin: {
     label: "Mannequin",
@@ -40,7 +41,7 @@ export function buildPrompt({ items, style, fillGaps, notes, feedback }) {
     .join("\n");
 
   const extras = fillGaps
-    ? "If a basic piece is missing for a complete outfit (bottoms or shoes, say), add a plain one in a neutral color that suits the rest. Keep added pieces understated so the supplied items stay the focus."
+    ? "If the outfit cannot be complete without a piece that is missing (bottoms or shoes), add a plain one in a neutral color that suits the rest, and keep it understated so the supplied items stay the focus. Add nothing beyond that: no hats, bags, watches, jewellery, belts or other accessories that weren't supplied."
     : worn
       ? "Don't add statement pieces or accessories that aren't in the reference pictures. Where no item was supplied, cover the body with the plainest neutral basics so the figure is fully dressed."
       : "Show only the supplied items. Don't add clothing or accessories that aren't in the reference pictures.";
