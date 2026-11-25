@@ -23,7 +23,8 @@ function wordsOf(body) {
 /**
  * Turn a non-2xx response from an image API into a ProviderError.
  * `help` holds plain-language advice for the two setup problems people hit
- * most: { billing, verification }.
+ * most: { billing, verification }. `billingWhen` is the wording by which a
+ * service's "too many requests" answer is known to be about money and not pace.
  */
 export async function errorFromResponse(res, providerName, help = {}) {
   let detail = "";
@@ -36,7 +37,7 @@ export async function errorFromResponse(res, providerName, help = {}) {
   let summary;
   if (help.verification && /verif/i.test(detail)) {
     summary = help.verification;
-  } else if (help.billing && (res.status === 429 || res.status === 402) && /quota|billing|credit|free.tier|limit: 0/i.test(detail)) {
+  } else if (help.billing && (res.status === 429 || res.status === 402) && (help.billingWhen ?? /quota|billing|credit/i).test(detail)) {
     summary = help.billing;
   } else if (res.status === 401 || res.status === 403 || /api key not valid/i.test(detail)) {
     summary = `${providerName} didn't accept your key. Check it in Setup.`;

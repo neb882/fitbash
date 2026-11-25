@@ -40,8 +40,10 @@ export function createGeminiProvider({ apiKey, model, fetchImpl = fetch }) {
       }, "Google");
       if (!res.ok) {
         throw await errorFromResponse(res, "Google", {
+          // Google's own words for a key with no billing: "(limit: 0 ... on Free Tier)".
+          billingWhen: /free.tier|limit: 0/i,
           billing:
-            "Google won't make pictures with this key until billing is turned on for it. Open aistudio.google.com, set up billing for the key, then try again.",
+            "Google's free tier makes no pictures. Turn on billing for this key at aistudio.google.com (Google calls it upgrading your tier), then try again.",
         });
       }
 

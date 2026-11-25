@@ -94,7 +94,7 @@ test("API errors become messages a person can act on", async () => {
   const google = (status, message) =>
     createGeminiProvider({ apiKey: "k", model: "m", fetchImpl: fakeFetch(status, { error: { message } }).impl })
       .generate({ prompt: "p", images, aspectRatio: "1:1" });
-  await assert.rejects(google(429, "Quota exceeded for metric generate_content_free_tier_requests, limit: 0"), /until billing is turned on/);
+  await assert.rejects(google(429, "Quota exceeded for metric generate_content_free_tier_requests, limit: 0"), /Turn on billing for this key/);
   await assert.rejects(google(400, "API key not valid. Please pass a valid API key."), /Google didn't accept your key/);
 });
 
@@ -151,4 +151,18 @@ test("a service's own words are quoted cleanly, whichever way it wraps them", as
   await assert.rejects(plain.generate({ prompt: "p", images, aspectRatio: "1:1" }), /having trouble.*OpenAI said: upstream went away\)$/);
   const empty = createOpenAIProvider({ apiKey: "k", model: "m", fetchImpl: async () => new Response("<html>", { status: 500 }) });
   await assert.rejects(empty.generate({ prompt: "p", images, aspectRatio: "1:1" }), (error) => /having trouble/.test(error.message) && !/said:/.test(error.message));
+});
+
+test("Google's refusal of a key with no billing is explained in plain words", async () => {
+  // What the real service answered a picture request on a free-tier key (2026-11-25).
+  const real = { error: { message: "Rate limit exceeded for model gemini-nano-banana-2.1 (limit: 0 requests per day on Free Tier). Please upgrade your tier at https://ai.dev/rate-limit.", code: "too_many_requests" } };
+  const provider = createGeminiProvider({ apiKey: "k", model: "gemini-nano-banana-2.1", fetchImpl: fakeFetch(429, real).impl });
+  await assert.rejects(provider.generate({ prompt: "p", images, aspectRatio: "1:1" }), (error) => {
+    assert.match(error.message, /^Google's free tier makes no pictures\. Turn on billing for this key at aistudio\.google\.com/);
+    assert.match(error.message, /Google said: Rate limit exceeded for model gemini-nano-banana-2\.1/);
+    return true;
+  });
+  // An ordinary "slow down" from Google is not mistaken for it.
+  const busy = createGeminiProvider({ apiKey: "k", model: "m", fetchImpl: fakeFetch(429, { error: { message: "Resource has been exhausted (e.g. check quota)." } }).impl });
+  await assert.rejects(busy.generate({ prompt: "p", images, aspectRatio: "1:1" }), (error) => /too many requests/.test(error.message) && !/free tier/.test(error.message));
 });

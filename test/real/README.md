@@ -9,11 +9,17 @@ It costs money on the key's account: about 4 cents a picture on Google's suggest
 Written 2026-11-25; change this list as runs are made.
 
 - Proven against the real services, with deliberately wrong keys: the key checks for Google, OpenAI and OpenRouter, and the page's handling of Google's "key not valid" answer to a picture request.
-- Not yet proven: a single real outfit picture from any service; the OpenRouter sign-in round trip; the Claude check; a model on a visitor's own computer.
+- Proven with a real Google key that had no billing (2026-11-25): the key check passes, the picture request reaches the service in a form it accepts, and its refusal ("limit: 0 ... on Free Tier", HTTP 429) is shown as the page's billing advice. No picture was made and nothing was spent.
+- Not yet proven: a single real outfit picture from any service, and so how Google's picture answer is read; the OpenRouter sign-in round trip; the Claude check; a model on a visitor's own computer.
 
 ## Before a run
 
-1. **The key.** Ask for it through the secure credential form, never in chat. For Google the host is `generativelanguage.googleapis.com` and the header is `x-goog-api-key` with no prefix; for OpenAI (`api.openai.com`) and OpenRouter (`openrouter.ai`) it is `Authorization` with `Bearer`. The workspace's network then attaches the key to requests to that host, and the runner types a placeholder into Setup. If the key is instead in an environment variable, name it with `--key-env`; do not put a key on a command line.
+1. **The key.** It never goes in chat, a file or a command line. It is saved as a network secret on the session's environment, and the workspace's network then attaches it to requests to that host while the runner types a placeholder into Setup.
+   - OpenAI (`api.openai.com`) and OpenRouter (`openrouter.ai`) read `Authorization: Bearer`, which the secure credential form can save.
+   - Google (`generativelanguage.googleapis.com`) reads `x-goog-api-key` with no prefix, which the form cannot save and Google does not accept as `Bearer` (checked 2026-11-25). The owner adds it in the environment's settings under Network secrets. The `fitbash` environment has one saved; `curl` to `/v1beta/models` with any placeholder key answering 200 shows it is attached.
+   - A key in an environment variable works too: name the variable with `--key-env`.
+   - Google makes pictures only for a key with billing turned on. On the free tier every image model answers "limit: 0".
+   - A script run with Node reaches the network directly unless `NODE_USE_ENV_PROXY=1` is set, and so goes without the key. The browser the runner drives needs nothing extra.
 2. **The pieces.** The best test is the owner's own clothes: ask for photos, a graphic or lettered tee among them, since prints are where these models fail. Put each outfit in its own folder under `test/real/pieces/`, one picture per piece, named for the piece:
 
    ```

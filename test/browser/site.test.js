@@ -416,12 +416,13 @@ test("without a Claude key one picture is made and nothing is sent to the check"
 });
 
 test("a service's refusal is explained with what to do next", options, async (t) => {
-  const billing = [429, { error: { message: "Quota exceeded for metric generate_content_free_tier_requests, limit: 0" } }];
+  // Google's real answer to a picture request on a key with no billing (2026-11-25).
+  const billing = [429, { error: { message: "Rate limit exceeded for model gemini-nano-banana-2.1 (limit: 0 requests per day on Free Tier). Please upgrade your tier at https://ai.dev/rate-limit.", code: "too_many_requests" } }];
   const { page } = await open(t, { services: { googleError: billing } });
   await page.fill("#provider-key", "GOOD-KEY");
   await addFiles(page, TEE);
   await page.click("#generate");
-  await untilText(page, "#progress", "until billing is turned on");
+  await untilText(page, "#progress", "Turn on billing for this key");
   assert.equal(await page.locator("#progress.error").count(), 1);
   assert.equal(await page.isEnabled("#generate"), true);
 });
