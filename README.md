@@ -45,7 +45,9 @@ The Gemini and OpenAI connections were written from the services' documentation 
 
 Image models often return a polished picture that has quietly changed what matters: a graphic tee's print redrawn, a color shifted, a piece left out. If you also add a Claude key under **Optional: double-check every picture** in Setup, every generated picture goes to Claude along with your item pictures. Claude reports per item whether it is present and true to its picture. When something is off, fitbash regenerates once with Claude's notes, shows both attempts with their verdicts, and marks the better one.
 
-Each check is one Claude request, which adds about a cent or two per picture on the default model. Without a Claude key you get a single unchecked picture.
+Each check is one Claude request. On the default model it costs roughly 3 to 7 cents for a three-piece outfit, about as much as the picture itself, and a redo means a second picture and a second check. That is an estimate from token prices, not a measurement. Without a Claude key you get a single unchecked picture.
+
+The check sees your item pictures at 1024 pixels, which is more detail than the generated outfit shows of any one piece. A cheaper Claude model can be entered under **Advanced** in Setup; it will cost less and may miss more of the subtle changes the check is there to catch.
 
 ## Adding items
 
@@ -55,7 +57,7 @@ Each check is one Claude request, which adds about a cent or two per picture on 
 
 Large retailers often block automated visits, in which case the page says so. Copying the product picture and pasting it always works.
 
-An outfit takes up to 8 pieces. Pictures are shrunk to 1536 pixels on the long side before they are sent.
+An outfit takes up to 8 pieces. Pictures are shrunk to 1536 pixels on the long side before they go to the image service.
 
 ## Your keys and pictures
 

@@ -20,6 +20,8 @@ export async function* runOutfit(request, { provider, critic = null, maxAttempts
   const style = STYLES[request.style] ? request.style : DEFAULT_STYLE;
   const { aspectRatio } = STYLES[style];
   const images = request.items.map(({ mimeType, data }) => ({ mimeType, data }));
+  // An item may carry a smaller `review` copy for the check, which is billed by picture area.
+  const checkItems = request.items.map((item) => ({ label: item.label, ...(item.review ?? item) }));
 
   const attempts = [];
   let feedback = "";
@@ -48,7 +50,7 @@ export async function* runOutfit(request, { provider, critic = null, maxAttempts
     if (!critic) break;
 
     yield { type: "checking", attempt };
-    record.review = await critic.review({ items: request.items, generated: image, fillGaps: request.fillGaps });
+    record.review = await critic.review({ items: checkItems, generated: image, fillGaps: request.fillGaps });
     yield { type: "review", attempt, review: record.review };
 
     // Stop on a pass, and also when the check couldn't run: without its notes

@@ -118,3 +118,22 @@ test("pickBest prefers a pass, then the top score, then the later attempt", () =
   assert.equal(pickBest([{ attempt: 1, review: fail(7) }, { attempt: 2, review: fail(5) }]), 1);
   assert.equal(pickBest([{ attempt: 1, review: null }]), 1);
 });
+
+test("the check gets an item's smaller review copy, the image model the full one", async () => {
+  const provider = fakeProvider([]);
+  let seen;
+  const critic = { review: async (args) => ((seen = args), pass()) };
+  const items = [
+    { mimeType: "image/jpeg", data: "FULL", label: "frog tee", review: { mimeType: "image/jpeg", data: "SMALL" } },
+    { mimeType: "image/png", data: "ONLY", label: "jeans" },
+  ];
+  await collect(runOutfit({ ...request, items }, { provider, critic, maxAttempts: 2 }));
+  assert.deepEqual(provider.calls[0].images, [
+    { mimeType: "image/jpeg", data: "FULL" },
+    { mimeType: "image/png", data: "ONLY" },
+  ]);
+  assert.deepEqual(seen.items, [
+    { label: "frog tee", mimeType: "image/jpeg", data: "SMALL" },
+    { label: "jeans", mimeType: "image/png", data: "ONLY" },
+  ]);
+});

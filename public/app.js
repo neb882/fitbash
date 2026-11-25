@@ -9,6 +9,9 @@ import { createCritic, DEFAULT_CRITIC_MODEL } from "./lib/critic.js";
 import { checkKey } from "./lib/keycheck.js";
 
 const MAX_EDGE = 1536; // Item pictures are shrunk to this before they are sent.
+// The check is billed by picture area, and the generated outfit shows each
+// piece smaller than this, so a larger reference would cost more and add nothing.
+const CHECK_EDGE = 1024;
 const MAX_ITEMS = 8;
 const MAX_ATTEMPTS = 2; // One redo when the check finds a problem.
 const SETTINGS_KEY = "fitbash-settings";
@@ -51,7 +54,7 @@ const ui = {
 };
 
 const state = {
-  items: [], // { id, label, mimeType, data, preview }
+  items: [], // { id, label, mimeType, data, preview, review }
   settings: {
     provider: DEFAULT_PROVIDER,
     geminiKey: "",
@@ -232,9 +235,9 @@ async function decode(blob) {
   }
 }
 
-/** Shrink a decoded picture to a JPEG of at most MAX_EDGE pixels on its long side. */
-function normalize(source) {
-  const scale = Math.min(1, MAX_EDGE / Math.max(source.width, source.height));
+/** Draw a decoded picture as a JPEG of at most `maxEdge` pixels on its long side. */
+function toJpeg(source, maxEdge) {
+  const scale = Math.min(1, maxEdge / Math.max(source.width, source.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(source.width * scale));
   canvas.height = Math.max(1, Math.round(source.height * scale));
@@ -242,8 +245,15 @@ function normalize(source) {
   ctx.fillStyle = "#fff"; // JPEG has no transparency; cut-outs get a white backdrop.
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
-  const preview = canvas.toDataURL("image/jpeg", 0.9);
-  return { mimeType: "image/jpeg", data: preview.slice(preview.indexOf(",") + 1), preview };
+  const url = canvas.toDataURL("image/jpeg", 0.9);
+  return { mimeType: "image/jpeg", data: url.slice(url.indexOf(",") + 1), url };
+}
+
+/** The copy sent to the image model, plus a smaller one for the check. */
+function normalize(source) {
+  const { url: preview, ...full } = toJpeg(source, MAX_EDGE);
+  const { url: _unused, ...review } = toJpeg(source, CHECK_EDGE);
+  return { ...full, preview, review };
 }
 
 function hasRoom() {
@@ -528,7 +538,7 @@ async function generate() {
       : null;
     const maxAttempts = critic ? MAX_ATTEMPTS : 1;
     const request = {
-      items: state.items.map(({ mimeType, data, label }) => ({ mimeType, data, label })),
+      items: state.items.map(({ mimeType, data, label, review }) => ({ mimeType, data, label, review })),
       style: document.querySelector('input[name="style"]:checked')?.value ?? DEFAULT_STYLE,
       fillGaps: ui.fill.checked,
       notes: ui.notes.value,
