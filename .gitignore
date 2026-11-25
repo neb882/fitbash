@@ -4,3 +4,7 @@ node_modules/
 !.env.example
 *.log
 .DS_Store
+
+# Real-service test runs: visitors' photos and generated pictures never go in the repository.
+test/real/out/
+test/real/pieces/

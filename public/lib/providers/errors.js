@@ -9,6 +9,18 @@ export class ProviderError extends Error {
 }
 
 /**
+ * What a service said went wrong, out of whichever wrapping it used: an object
+ * with an `error`, a list holding one (Google's picture requests answer this
+ * way), an error that is plain text, or something else, which is quoted in brief.
+ */
+function wordsOf(body) {
+  const error = (Array.isArray(body) ? body[0] : body)?.error;
+  if (typeof error === "string") return error;
+  if (typeof error?.message === "string") return error.message;
+  return JSON.stringify(body).slice(0, 300);
+}
+
+/**
  * Turn a non-2xx response from an image API into a ProviderError.
  * `help` holds plain-language advice for the two setup problems people hit
  * most: { billing, verification }.
@@ -16,8 +28,7 @@ export class ProviderError extends Error {
 export async function errorFromResponse(res, providerName, help = {}) {
   let detail = "";
   try {
-    const body = await res.json();
-    detail = body?.error?.message ?? JSON.stringify(body).slice(0, 300);
+    detail = wordsOf(await res.json());
   } catch {
     // Not JSON; the status code is all we have.
   }

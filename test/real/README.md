@@ -1,0 +1,63 @@
+# Testing against the real services
+
+Everything else in `test/` uses stand-ins. This folder is for the other kind of test: the real page, a real key, real pictures of clothes, and a person (or a session) looking at what comes back. It is the only way to learn whether a connection works and how well a model keeps a garment's print, colour and cut.
+
+It costs money on the key's account: about 4 cents a picture on Google's suggested model, more on some others.
+
+## What is and isn't proven so far
+
+Written 2026-11-25; change this list as runs are made.
+
+- Proven against the real services, with deliberately wrong keys: the key checks for Google, OpenAI and OpenRouter, and the page's handling of Google's "key not valid" answer to a picture request.
+- Not yet proven: a single real outfit picture from any service; the OpenRouter sign-in round trip; the Claude check; a model on a visitor's own computer.
+
+## Before a run
+
+1. **The key.** Ask for it through the secure credential form, never in chat. For Google the host is `generativelanguage.googleapis.com` and the header is `x-goog-api-key` with no prefix; for OpenAI (`api.openai.com`) and OpenRouter (`openrouter.ai`) it is `Authorization` with `Bearer`. The workspace's network then attaches the key to requests to that host, and the runner types a placeholder into Setup. If the key is instead in an environment variable, name it with `--key-env`; do not put a key on a command line.
+2. **The pieces.** The best test is the owner's own clothes: ask for photos, a graphic or lettered tee among them, since prints are where these models fail. Put each outfit in its own folder under `test/real/pieces/`, one picture per piece, named for the piece:
+
+   ```
+   test/real/pieces/
+     weekend/   01-frog-tee.jpg   02-blue-jeans.jpg   03-white-sneakers.jpg
+     one-shirt/ 01-striped-shirt.jpg
+   ```
+
+   The file name becomes the piece's name on the page (`01-frog-tee.jpg` is "frog tee"). Git ignores this folder. If the owner has no photos to hand, use freely licensed product photos and say where they came from; on 2026-11-25 Wikimedia Commons and Openverse both refused this workspace's searches as too frequent.
+3. **The budget.** Outfits times looks is the number of pictures (double it if the check is on and a redo happens). Tell the owner the number first. The runner stops at 8 pictures unless `--max-pictures` says otherwise.
+
+## The run
+
+```sh
+npm ci
+node test/real/run.mjs --pieces test/real/pieces                      # Google, flat lay and on a model
+node test/real/run.mjs --pieces test/real/pieces --looks flatlay      # one look only
+node test/real/run.mjs --pieces test/real/pieces --service openrouter --model openai/gpt-image-2.5-sunburst
+node test/real/run.mjs --pieces test/real/pieces --site https://<owner>.github.io/fitbash/   # the published site
+```
+
+It opens the page, connects the key in Setup, and for each outfit adds the pictures, names them, picks the look and presses **Make the outfit**. Into `test/real/out/` go every picture made, a `report.md`, and for each run an `…-answers.json` holding what the services answered, with pictures and other long text cut short.
+
+To have the Claude check take part, give its key the same way (`--check-key-env`). From this kind of workspace the browser may not reach Anthropic's address at all (a certificate error, seen 2026-11-25); that is the workspace's network, not the site.
+
+## Reading the results
+
+Open each picture beside the pieces it was made from and, for every piece, answer:
+
+- Is it there, once?
+- Is the colour right? The cut?
+- Is a print, logo or lettering the same artwork and the same words, or a redrawn lookalike?
+
+Then for the picture as a whole: anything added that wasn't asked for, anything distorted, any caption or border. Report to the owner one line per outfit and look, with the picture, and say plainly which pieces came out wrong. A run where every request succeeded can still be a failed test.
+
+## When a run fails
+
+- **The page's message** is in the runner's output and in `report.md`. It should say what to do; if it doesn't, that is a finding too.
+- **`…-answers.json`** shows the status and the shape of each answer. A connection written from documentation can differ from the real service in a field name or in how an answer is wrapped: fix the code in `public/lib/providers/` to match what the service really sent, add a unit test that holds that shape, and run again.
+- **A message about billing, credit or verification** is the account, not the code: the owner has to turn billing on (Google), add credit (OpenRouter, OpenAI) or verify (OpenAI).
+- **`net::ERR_CERT_…` among the failures** is this workspace's network standing between the browser and the service.
+
+## Afterwards
+
+- Change "What is and isn't proven so far" above, and the sentences in the main README that say a connection has not been run for real.
+- If models were compared, put what was found in the README under "Which models, and why", as a result this time.
+- Remind the owner to delete the key and to remove it from the environment's saved secrets.

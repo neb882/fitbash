@@ -44,6 +44,15 @@ Most rules give their reason in brackets, so a rule can be dropped once its reas
 - `public/sw.js` serves the site's own files network-first and touches nothing else, and only a stamped copy registers it. Change it with care and read the live site after the deploy: a broken service worker stays in visitors' browsers until a fixed one replaces it.
 - GitHub Actions versions are looked up, not remembered (`git ls-remote --tags https://github.com/actions/<name>`). [The first deploy failed on an upload step two major versions behind its deploy step.]
 
+## Testing against the real services
+
+`test/real/README.md` is the procedure, and `test/real/run.mjs` does the run: it uses the page in a browser as a visitor would and saves every picture with what the service answered. Read the procedure before the first run of a session.
+
+- It spends the owner's money. Say how many pictures a run will make before starting it, and keep to the runner's limit.
+- A key reaches a session only through the secure credential form, never through chat, a file, a command line or a commit.
+- Photos of real clothes and the pictures made from them stay in `test/real/pieces/` and `test/real/out/`, which git ignores. [They are the owner's, and may show people.]
+- What the real service answered outranks its documentation: when they differ, fix the code to the answer and pin it in a unit test. [The first real request showed Google wrapping its errors in a list, which no page read had said.]
+
 ## Which model does what
 
 The split is by the kind of work, as in the owner's other projects. The model is chosen when an agent is started and is never written into this repository.

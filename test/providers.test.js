@@ -137,3 +137,18 @@ test("the chosen provider is built with its default model, and a missing key is 
   assert.throws(() => createProvider({ provider: "gemini" }), (e) => e instanceof ProviderError && /Google key in Setup/.test(e.message));
   assert.throws(() => createProvider({ provider: "openai", geminiKey: "k" }), /OpenAI key in Setup/);
 });
+
+test("a service's own words are quoted cleanly, whichever way it wraps them", async () => {
+  // Google's picture requests answer errors as a list holding the error (seen from the real service, 2026-11).
+  const wrapped = [{ error: { code: 400, message: "API key not valid. Please pass a valid API key.", status: "INVALID_ARGUMENT", details: [{ reason: "API_KEY_INVALID" }] } }];
+  const provider = createGeminiProvider({ apiKey: "k", model: "m", fetchImpl: fakeFetch(400, wrapped).impl });
+  await assert.rejects(provider.generate({ prompt: "p", images, aspectRatio: "1:1" }), (error) => {
+    assert.equal(error.message, "Google didn't accept your key. Check it in Setup. (Google said: API key not valid. Please pass a valid API key.)");
+    return true;
+  });
+  // A service that sends plain text as its error, and one that sends nothing readable.
+  const plain = createOpenAIProvider({ apiKey: "k", model: "m", fetchImpl: fakeFetch(500, { error: "upstream went away" }).impl });
+  await assert.rejects(plain.generate({ prompt: "p", images, aspectRatio: "1:1" }), /having trouble.*OpenAI said: upstream went away\)$/);
+  const empty = createOpenAIProvider({ apiKey: "k", model: "m", fetchImpl: async () => new Response("<html>", { status: 500 }) });
+  await assert.rejects(empty.generate({ prompt: "p", images, aspectRatio: "1:1" }), (error) => /having trouble/.test(error.message) && !/said:/.test(error.message));
+});
