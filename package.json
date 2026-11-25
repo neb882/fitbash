@@ -10,11 +10,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test",
+    "test": "node --test test/*.test.js",
+    "test:browser": "node --test test/browser/*.test.js",
+    "test:all": "node --test test/*.test.js test/browser/*.test.js",
     "vendor": "sh scripts/vendor.sh"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^1.14.0",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "playwright": "1.63.0"
   }
 }

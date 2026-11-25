@@ -1,0 +1,42 @@
+name: tests
+
+# A commit is tested once, when it is pushed. On main the deploy workflow calls
+# this one before it publishes, so a push to main does not start it a second time.
+on:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  # A newer push to a branch replaces the run of the older one.
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Install the browser
+        # The browser comes from Playwright's servers. Its system packages come from Ubuntu's
+        # mirrors, which are at times unreachable from the runners: then the suite runs on what
+        # the image has. A missing library fails the browser tests at launch; it cannot pass them.
+        run: |
+          npx playwright install chromium
+          timeout 180 npx playwright install-deps chromium \
+            || echo "::warning::Ubuntu's package mirrors could not be reached; the browser tests run on the runner image's own libraries."
+      - name: Browser tests
+        run: npm run test:browser

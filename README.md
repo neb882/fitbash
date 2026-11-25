@@ -80,8 +80,10 @@ public/                      the whole app; this folder is what GitHub Pages ser
 server.js                    optional local server: serves public/ and adds link lookup
 src/extract.js               product link to candidate pictures
 src/safe-fetch.js            fetching pasted links without reaching private networks
-test/                        node --test suites for all of the above
-.github/workflows/pages.yml  publishes public/ to GitHub Pages
+test/                        unit tests for all of the above
+test/browser/                the page driven in a real browser
+.github/workflows/test.yml   runs every test on each push
+.github/workflows/pages.yml  runs the tests, then publishes public/ to GitHub Pages
 ```
 
 There is no build step. The one generated file is `public/vendor/anthropic-sdk.js`, a single-file browser copy of `@anthropic-ai/sdk` that is committed so the static site can load it. After changing the SDK version in `package.json`, run `npm install && npm run vendor` to rebuild it.
@@ -91,11 +93,15 @@ To add another image model, write a module in `public/lib/providers/` that expor
 ## Tests
 
 ```bash
-npm install
-npm test
+npm ci
+npm test               # unit tests
+npm run test:browser   # the page in a real browser (first run: npx playwright install chromium)
+npm run test:all       # both
 ```
 
-The tests use local servers and stand-in models. They need no API keys and make no outside requests.
+The browser tests open the page the way GitHub Pages serves it and use it as a visitor would: first-time setup, pasting keys, adding pictures, making an outfit, the check and its redo, and a phone-sized screen. The three AI services are replaced by canned answers, so the tests need no keys and reach nothing outside your machine.
+
+Every push runs all of them on GitHub. A push to `main` publishes the site only if they pass.
 
 ## Ideas for later
 

@@ -1,25 +1,42 @@
 # fitbash
 
-Outfit maker: item pictures in, one generated outfit picture out. It is a static site in `public/` that GitHub Pages serves as-is; all generation runs in the browser with the user's own API keys. `server.js` is an optional local helper that adds product-link lookup. See README.md for the layout.
+Outfit maker: item pictures in, one generated outfit picture out. It is a static site in `public/` that GitHub Pages serves as-is; all generation runs in the browser with the user's own API keys. `server.js` is an optional local helper that adds product-link lookup. README.md has the layout.
+
+## Commands
+
+```sh
+npm ci
+npm test               # unit tests, a few seconds
+npm run test:browser   # the page in a real browser against stand-in services
+npm run test:all       # both; what CI runs
+npm start              # the page with the local helper, on http://localhost:3000
+```
+
+Where the installed Chromium is not the one Playwright pins, set `CHROMIUM_EXECUTABLE` to its path for the browser tests. No test needs a key or reaches outside the machine.
 
 ## Checks
 
-- `npm test` must pass before every commit. Tests need no keys and no network.
-- For changes to `public/`, also load the page in a browser and run through add, generate and result, both from a plain static file server under a subfolder (how Pages serves it) and from `npm start`. With no key set the page uses the mock image model.
-- Report results with the command output, not a summary of it.
+- `npm run test:all` passes before every commit.
+- **CI is the inspection.** Every push runs the `tests` workflow on a clean runner; a push to `main` runs the same tests and publishes the site only if they pass. After a push, read the run on the head commit yourself (its conclusion and its head SHA). [A local pass says nothing about a fresh checkout, and the site is public the moment a deploy finishes.]
+- Every fix comes with a test that fails without it. A change to what a visitor sees or does gets a browser test in `test/browser/`.
+- Check a new test by breaking the code it covers: the break must fail it. [A test that cannot fail reads as coverage and protects nothing.]
+- Report results with the command's output, not a summary of it.
 
 ## Rules
 
-- This repository is public-facing. Never commit names, emails, usernames, chat screenshots, real photos of people, API keys or `.env` files. Test fixtures are synthetic.
+Most rules give their reason in brackets, so a rule can be dropped once its reason no longer holds.
+
+- Never commit names, emails, usernames, chat screenshots, real photos of people, API keys or `.env` files. Test fixtures are synthetic. [The repository is public and its history keeps everything.]
 - No names or identifiers of the AI assistant models that build this project in code, docs or commit messages, apart from the attribution trailer the session's instructions require on each commit. The models the page itself calls (the image models, the check) are named wherever needed.
-- Everything under `public/` must run in a browser from a subfolder: relative URLs only, no Node APIs, no build step, no front-end framework. The server test enforces the first two.
-- API keys live only in the user's browser storage and go only to their own provider. Don't add analytics, third-party scripts or CDN imports, and keep `connect-src` in `public/index.html` limited to the providers the page actually calls.
-- The people using the page are not technical. Text on the page says what to do in everyday words ("key", "service", "picture"), every error says what to do next, and anything optional or advanced stays out of the main path.
+- Everything under `public/` runs in a browser from a subfolder: relative URLs only, no Node APIs, no build step, no front-end framework. [GitHub Pages serves the folder as it is, under `/<repository>/`.]
+- API keys live only in the user's browser storage and go only to their own provider. No analytics, third-party scripts or CDN imports, and `connect-src` in `public/index.html` lists only the providers the page calls. [A visitor's key is their money; the content security policy is what keeps a mistake from sending it elsewhere.]
 - The content security policy forbids inline scripts and styles.
+- The people using the page are not technical. Text on the page says what to do in everyday words ("key", "service", "picture"), every error says what to do next, and anything optional or advanced stays out of the main path.
 - Claude calls use the official `@anthropic-ai/sdk`. The browser loads it from `public/vendor/anthropic-sdk.js`, which is generated: change the version in `package.json` and run `npm run vendor`, never edit the file.
-- Every user-supplied URL the server fetches goes through `src/safe-fetch.js`. Don't call `fetch` on one directly. The server listens on 127.0.0.1 unless `HOST` says otherwise.
-- The generate-check-redo loop in `public/lib/pipeline.js` must always have a hard attempt cap, and a failed check must never cost the person a picture that already exists.
-- Image API shapes change often. Before editing `public/lib/providers/gemini.js` or `openai.js`, read the provider's current documentation instead of relying on memory, and confirm with a CORS preflight that browsers may send any header you add.
+- Every user-supplied URL the server fetches goes through `src/safe-fetch.js`, never a direct `fetch`. The server listens on 127.0.0.1 unless `HOST` says otherwise. [It fetches whatever address it is given, which must not reach private networks or be offered to a whole network.]
+- The generate-check-redo loop in `public/lib/pipeline.js` always has a hard attempt cap, and a failed check never costs the person a picture that already exists. [Each attempt is the visitor's money.]
+- Image API shapes change often. Before editing `public/lib/providers/gemini.js` or `openai.js`, read the provider's current documentation instead of relying on memory, and confirm with a CORS preflight that browsers may send any header you add. [Both had changed since the code was first drafted, and one documented header is refused from browsers.]
+- GitHub Actions versions are looked up, not remembered (`git ls-remote --tags https://github.com/actions/<name>`). [The first deploy failed on an upload step two major versions behind its deploy step.]
 
 ## Which model does what
 
@@ -30,3 +47,11 @@ The split is by the kind of work, as in the owner's other projects. The model is
 - **The strongest model where judgment is the only check:** what to build, anything touching `src/safe-fetch.js`, the content security policy or how keys are handled, and the last read of a diff before it reaches `main`.
 - The main session does the work itself unless it is one of the above and can run alongside. fitbash is small: don't add builder, reviewer and skeptic roles until a change needs several work orders at once.
 - **The check inside the page is a judgment role too:** nothing checks its verdict, and a missed print defect is the failure it exists to catch. Cut its cost with smaller inputs first (it already gets 1024-pixel references). Change its default model or effort only after comparing the candidates on real outfit pictures with known defects.
+
+## Usage
+
+`.claude/mods/usage-meter/` is a Claude Code mod that shows the plan's 5-hour and weekly usage and gives the session a tool, `mcp__usage-meter__usage`. Its README says how to install it in a new session.
+
+- Read the meter before starting agents, a workflow or any other heavy run, and size the work to what is left.
+- Never draw on usage credits. [They are the owner's money.]
+- Work that changes nothing a visitor sees and decides nothing is not worth the usage.
