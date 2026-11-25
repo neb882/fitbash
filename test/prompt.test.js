@@ -40,3 +40,13 @@ test("a flat lay is upright and asks for every piece whole", () => {
   assert.match(STYLES.flatlay.scene, /whole and at its true length/);
   assert.match(STYLES.flatlay.scene, /lying on top of another/);
 });
+
+test("an unusual shape is to be kept, not turned into the ordinary version", () => {
+  // Seen with the real service: oversized clown shoes came out as ordinary-sized checkered sneakers,
+  // and enormous wide-leg jeans as merely baggy ones.
+  for (const style of Object.keys(STYLES)) {
+    const prompt = buildPrompt({ items, style, fillGaps: true });
+    assert.match(prompt, /shape and proportions as well, however unusual/);
+    assert.match(prompt, /never slim it down, shorten it or turn it into the ordinary version/);
+  }
+});

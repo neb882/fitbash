@@ -83,12 +83,17 @@ test("the local app's failures are explained with what to do", async () => {
   await fails(() => json(500, { error: { message: "something broke" } }), /fewer pieces.*too large for this computer.*It said: something broke/);
   await fails(() => json(500, { error: { message: "CUDA error: out of memory" } }), /ran out of memory.*fewer pieces.*It said: CUDA error/);
 
-  // Seen with the real app (an RTX 5070, three pieces): its own message is only "sd-server request failed".
-  // The picture engine's reason travels in the details, as Lemonade's source builds them.
+  // Seen with the real app (2026-11-25, a 12 GB NVIDIA card, three and five pieces): its own message is only
+  // "sd-server request failed", and the picture engine's words travel in the details.
   const wrapped = (response) =>
     json(500, {
       error: { message: "sd-server request failed", type: "backend_error", details: { status_code: 500, response } },
     });
+  await fails(
+    () => wrapped({ error: "generate_image returned no results" }),
+    /^The app on your computer couldn't make that picture\. Try again with fewer pieces.*\(It said: generate_image returned no results\)$/,
+  );
+  // The other shapes the details can take, from Lemonade's and the engine's source.
   await fails(() => wrapped({ error: "failed to allocate 9216 MiB" }), /ran out of memory.*It said: failed to allocate 9216 MiB\)$/);
   await fails(() => wrapped({ error: "server_error", message: "bad tensor shape" }), /It said: bad tensor shape\)$/);
   await fails(() => wrapped("plain words from the engine"), /It said: plain words from the engine\)$/);

@@ -54,6 +54,7 @@ export function buildPrompt({ items, style, fillGaps, notes, feedback }) {
       "Each reference picture shows one item to include. Use only the item itself: ignore any background, person, hanger, watermark or price tag around it.",
       "Show every supplied item exactly once.",
       "Keep each item true to its picture: the same colors, cut, fabric, and any print, logo or lettering reproduced as it appears there. People will use this picture to decide whether these exact pieces go together, so a changed print or color makes it useless.",
+      "Keep each item's own shape and proportions as well, however unusual. An item that is oversized, extra wide, extra long or exaggerated in its picture stays exactly that large and that shape here: never slim it down, shorten it or turn it into the ordinary version of that kind of item.",
       extras,
       "No captions, labels, borders or collage panels in the picture.",
     ].join("\n"),
