@@ -26,13 +26,14 @@ test("the page and its modules are served", async (t) => {
   assert.equal(page.status, 200);
   assert.match(page.headers.get("content-type"), /text\/html/);
   assert.equal(page.headers.get("x-content-type-options"), "nosniff");
-  assert.match(await page.text(), /<title>fitbash<\/title>/);
+  assert.match(await page.text(), /<title>fitbash\b/);
   for (const path of ["/app.js", "/lib/pipeline.js", "/lib/providers/gemini.js", "/vendor/anthropic-sdk.js"]) {
     const res = await fetch(origin + path);
     assert.equal(res.status, 200, path);
     assert.match(res.headers.get("content-type"), /text\/javascript/, path);
   }
   assert.match((await fetch(origin + "/style.css")).headers.get("content-type"), /text\/css/);
+  assert.equal((await fetch(origin + "/fonts/instrument-serif-regular.woff2")).headers.get("content-type"), "font/woff2");
 });
 
 test("the page works from a subfolder on a static host", async () => {

@@ -57,6 +57,8 @@ const ui = {
   setup: $("setup"),
   settings: $("settings"),
   settingsSummary: $("settings-summary"),
+  settingsDot: $("settings-dot"),
+  stage: $("stage"),
   providers: $("providers"),
   keySetup: $("key-setup"),
   localSetup: $("local-setup"),
@@ -184,6 +186,7 @@ function renderSettings() {
   ui.claudeModel.value = settings.claudeModel;
   ui.claudeModel.placeholder = DEFAULT_CRITIC_MODEL;
 
+  ui.settingsDot.classList.toggle("on", ready());
   ui.settingsSummary.textContent = ready()
     ? `${chosen.label} connected${checkIsOn() ? ", double-check on" : ""}`
     : "Do this once to get real outfit pictures. It takes a few minutes.";
@@ -650,6 +653,8 @@ async function addLink(url) {
 // ---- generate --------------------------------------------------------------
 
 function updateGenerate() {
+  // The outfit frame shows that work is under way, for eyes and for screen readers.
+  ui.stage.setAttribute("aria-busy", String(state.busy));
   ui.generate.disabled = state.busy || state.items.length === 0;
   ui.generate.textContent = state.busy ? "Working…" : "Make the outfit";
 }

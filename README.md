@@ -108,6 +108,7 @@ public/                      the whole app; this folder is what GitHub Pages ser
   lib/hardware.js            guesses the graphics card's size tier, to suggest a local model
   lib/history.js             past outfits, kept in the browser's own storage
   vendor/anthropic-sdk.js    browser build of the official Anthropic SDK (generated, see below)
+  fonts/                     the heading typeface, Instrument Serif, served from this site (SIL Open Font License, in OFL.txt)
 server.js                    optional local server: serves public/ and adds link lookup
 src/extract.js               product link to candidate pictures
 src/safe-fetch.js            fetching pasted links without reaching private networks
@@ -130,7 +131,7 @@ npm run test:browser   # the page in a real browser (first run: npx playwright i
 npm run test:all       # both
 ```
 
-The browser tests open the page the way GitHub Pages serves it and use it as a visitor would: first-time setup, pasting keys, adding pictures, making an outfit, the check and its redo, a model on the visitor's own computer, past outfits, and a phone-sized screen. The three AI services are replaced by canned answers, so the tests need no keys and reach nothing outside your machine.
+The browser tests open the page the way GitHub Pages serves it and use it as a visitor would: first-time setup, pasting keys, adding pictures, making an outfit, the check and its redo, a model on the visitor's own computer, past outfits, and a phone-sized screen. They also run an automated accessibility check (contrast, labels, roles) in the light and dark colours. The three AI services are replaced by canned answers, so the tests need no keys and reach nothing outside your machine.
 
 Every push runs all of them on GitHub. A push to `main` publishes the site only if they pass.
 

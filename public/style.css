@@ -1,29 +1,55 @@
+/* fitbash: paper, ink and one warm accent, with a display serif for the headings. */
+
+@font-face {
+  font-family: "Instrument Serif";
+  src: url("fonts/instrument-serif-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Instrument Serif";
+  src: url("fonts/instrument-serif-italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
-  --bg: #f6f3ee;
-  --panel: #fffdf9;
-  --ink: #1f1d1a;
-  --muted: #6d665c;
-  --line: #e2dcd2;
-  --accent: #1f1d1a;
-  --accent-ink: #fffdf9;
-  --highlight: #f2c14e;
-  --good: #2f7d4f;
-  --bad: #b3402e;
-  --radius: 14px;
+  --paper: #f4f1ea;
+  --surface: #fffdf8;
+  --well: #f1ede4;
+  --ink: #17140f;
+  --muted: #655e52;
+  --line: #ddd6c7;
+  --accent: #c2351c;
+  --accent-soft: #f6dfd8;
+  --on-ink: #fffdf8;
+  --good: #1c6e45;
+  --bad: #ad2318;
+  --shadow: 0 1px 2px rgba(23, 20, 15, 0.05), 0 12px 32px -18px rgba(23, 20, 15, 0.28);
+  --radius: 18px;
+  --radius-small: 11px;
+  --serif: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #171614;
-    --panel: #201e1b;
-    --ink: #f1ece4;
-    --muted: #a39b8e;
-    --line: #37332d;
-    --accent: #f2c14e;
-    --accent-ink: #1f1d1a;
-    --good: #6cc48e;
-    --bad: #ee8573;
+    --paper: #12110f;
+    --surface: #1b1916;
+    --well: #24211d;
+    --ink: #f3eee4;
+    --muted: #aba293;
+    --line: #37322b;
+    --accent: #ff8163;
+    --accent-soft: #3a211b;
+    --on-ink: #17140f;
+    --good: #72cf99;
+    --bad: #ff8f80;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 36px -20px rgba(0, 0, 0, 0.7);
   }
 }
 
@@ -38,59 +64,10 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-
-.masthead {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 40px 16px 8px;
-}
-
-.masthead h1 {
-  margin: 0;
-  font-size: 2.25rem;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-}
-
-.masthead p {
-  margin: 6px 0 0;
-  color: var(--muted);
-}
-
-main {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 16px 16px 64px;
-  display: grid;
-  gap: 16px;
-}
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 20px;
-}
-
-.panel h2 {
-  margin: 0 0 12px;
-  font-size: 1.05rem;
-}
-
-.panel h3 {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  font: 16px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 .muted {
@@ -107,40 +84,198 @@ main {
   white-space: nowrap;
 }
 
-/* Controls */
+/* ---- page frame ---- */
+
+.masthead,
+main,
+.colophon {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.masthead {
+  padding-top: 44px;
+  padding-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 22px;
+}
+
+.masthead h1 {
+  margin: 0;
+  font: 400 clamp(3.2rem, 9vw, 5.25rem) / 0.9 var(--serif);
+  letter-spacing: -0.035em;
+}
+
+.masthead h1::after {
+  content: ".";
+  color: var(--accent);
+}
+
+.masthead p {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--muted);
+}
+
+.masthead em {
+  font: italic 1.35rem/1.2 var(--serif);
+  color: var(--ink);
+}
+
+main {
+  padding-bottom: 40px;
+  display: grid;
+  gap: 18px;
+}
+
+.workspace {
+  display: grid;
+  gap: 18px;
+  align-items: start;
+}
+
+.controls {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+@media (min-width: 940px) {
+  .workspace {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 10fr);
+  }
+
+  /* The outfit stays in view while the pieces and the look are changed. */
+  .stage {
+    position: sticky;
+    top: 18px;
+  }
+}
+
+.colophon {
+  padding-top: 8px;
+  padding-bottom: 56px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.colophon p {
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- panels and headings ---- */
+
+.panel {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.panel h2 {
+  margin: 0 0 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font: 400 1.7rem/1.1 var(--serif);
+  letter-spacing: -0.01em;
+}
+
+.num {
+  font: italic 1.7rem/1 var(--serif);
+  color: var(--accent);
+  min-width: 0.7em;
+}
+
+.panel h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ---- controls ---- */
 
 input[type="url"],
 input[type="text"],
 input[type="password"],
-textarea {
+textarea,
+select {
   width: 100%;
   min-width: 0;
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
+  border-radius: var(--radius-small);
+  background: var(--paper);
   color: var(--ink);
   font: inherit;
+  transition: border-color 0.15s;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--muted);
+}
+
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 textarea {
   resize: vertical;
 }
 
+select {
+  width: auto;
+  max-width: 100%;
+}
+
 button {
   font: inherit;
   cursor: pointer;
-  border-radius: 10px;
-  padding: 10px 16px;
+  border-radius: 999px;
+  padding: 10px 18px;
   border: 1px solid transparent;
   white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 button.primary {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--ink);
+  color: var(--on-ink);
   font-weight: 600;
-  padding: 12px 22px;
+  font-size: 1.05rem;
+  padding: 14px 28px;
+}
+
+button.primary::after {
+  content: "→";
+  display: inline-block;
+  margin-left: 10px;
+  transition: transform 0.15s;
+}
+
+button.primary:hover:not(:disabled)::after {
+  transform: translateX(4px);
 }
 
 button.quiet {
@@ -154,112 +289,35 @@ button.quiet.strong {
   font-weight: 600;
 }
 
-button.quiet:hover {
-  border-color: var(--muted);
+button.quiet:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--well);
 }
 
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
+.icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
 :focus-visible {
-  outline: 2px solid var(--highlight);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* Pieces */
-
-.dropzone {
-  border: 1.5px dashed var(--line);
-  border-radius: 12px;
-  padding: 12px;
-  min-height: 132px;
-  display: grid;
-  align-items: center;
-  transition: border-color 0.15s, background-color 0.15s;
-}
-
-.dropzone.over {
-  border-color: var(--highlight);
-  background: color-mix(in srgb, var(--highlight) 12%, transparent);
-}
-
-.empty {
-  margin: 0;
-  text-align: center;
-  color: var(--muted);
-  padding: 20px 8px;
-}
-
-.items {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-}
-
-.items:empty {
-  display: none;
-}
-
-.item {
-  position: relative;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.item img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: contain;
-  background: #fff;
-}
-
-.item input {
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  font-size: 0.875rem;
-  padding: 8px 10px;
-}
-
-.item .remove {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: 50%;
-  background: rgba(31, 29, 26, 0.78);
-  color: #fff;
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-.add-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.link-form {
-  display: flex;
-  gap: 10px;
-  flex: 1 1 320px;
-  min-width: 0;
-}
-
-.tip {
-  margin: 10px 0 0;
+a {
+  color: inherit;
+  text-underline-offset: 3px;
 }
 
 .status {
@@ -276,47 +334,16 @@ button:disabled {
   color: var(--bad);
 }
 
-.picker {
-  margin-top: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+.status.good {
+  color: var(--good);
+  font-weight: 600;
 }
 
-.picker-list {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 10px;
-}
-
-.picker-list button {
-  display: block;
-  width: 100%;
-  padding: 0;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.picker-list button:hover {
-  border-color: var(--highlight);
-}
-
-.picker-list img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: contain;
-}
-
-/* Look */
+/* A row of choices where exactly one is on. */
 
 .segmented {
   border: 0;
-  margin: 0 0 14px;
+  margin: 0 0 16px;
   padding: 0;
   min-width: 0; /* a fieldset otherwise refuses to be narrower than its longest label */
 }
@@ -327,9 +354,8 @@ button:disabled {
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  background: var(--well);
+  border-radius: 16px;
 }
 
 .segments label {
@@ -346,25 +372,30 @@ button:disabled {
 
 .segments span {
   display: block;
-  padding: 8px 16px;
-  border-radius: 9px;
+  padding: 9px 18px;
+  border-radius: 12px;
   font-size: 0.95rem;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .segments small {
   font-size: 0.85em;
   font-weight: 400;
-  opacity: 0.8;
+  opacity: 0.85;
+}
+
+.segments label:hover span {
+  background: var(--surface);
 }
 
 .segments input:checked + span {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--ink);
+  color: var(--on-ink);
   font-weight: 600;
 }
 
 .segments input:focus-visible + span {
-  outline: 2px solid var(--highlight);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -372,7 +403,7 @@ button:disabled {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   cursor: pointer;
 }
 
@@ -380,7 +411,7 @@ button:disabled {
   width: 18px;
   height: 18px;
   margin: 3px 0 0;
-  accent-color: var(--accent);
+  accent-color: var(--ink);
   flex: none;
 }
 
@@ -391,71 +422,109 @@ button:disabled {
   font-size: 0.95rem;
 }
 
-.go-row {
+.field-label .muted {
+  font-weight: 400;
+}
+
+/* ---- setup ---- */
+
+.settings {
+  padding: 0;
+}
+
+.settings > summary {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  margin-top: 16px;
-}
-
-select {
-  max-width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--ink);
-  font: inherit;
-}
-
-/* Settings */
-
-.settings summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
   gap: 4px 12px;
+  padding: 16px 24px;
   cursor: pointer;
   list-style: none;
+  border-radius: var(--radius);
 }
 
-.settings summary::-webkit-details-marker {
+.settings > summary::-webkit-details-marker {
   display: none;
 }
 
-.settings summary h2 {
+.settings > summary h2 {
   margin: 0;
+  font-size: 1.35rem;
 }
 
-.settings summary h2::before {
-  content: "▸";
-  display: inline-block;
-  width: 1.1em;
-  color: var(--muted);
+.settings > *:not(summary) {
+  margin-left: 24px;
+  margin-right: 24px;
 }
 
-.settings[open] summary h2::before {
-  content: "▾";
+.settings > button:last-child {
+  margin-bottom: 24px;
+}
+
+/* A dot that says at a glance whether pictures can be made yet. */
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  flex: none;
+}
+
+.dot.on {
+  background: var(--good);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 18%, transparent);
+}
+
+.chevron {
+  margin-left: auto;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg) translateY(-3px);
+  transition: transform 0.2s;
+}
+
+.settings[open] > summary .chevron {
+  transform: rotate(-135deg) translateY(-2px);
 }
 
 .lead {
-  margin: 16px 0;
+  margin-top: 4px;
+  margin-bottom: 18px;
+  max-width: 70ch;
 }
 
 .steps {
-  margin: 16px 0 12px;
-  padding-left: 1.4em;
+  margin: 18px 0 14px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 40px;
   min-width: 0; /* lets long model names and commands wrap on a phone */
 }
 
-.steps li::marker {
-  font-weight: 700;
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .steps label {
@@ -466,10 +535,10 @@ select {
 a.button {
   display: inline-block;
   margin-right: 6px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
   font-weight: 600;
   text-decoration: none;
 }
@@ -482,12 +551,17 @@ a.button::after {
   margin: 6px 0 0;
 }
 
+.key-status {
+  margin-top: 6px;
+  min-height: 0;
+}
+
 .callout {
   margin-top: 10px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
+  border-radius: var(--radius-small);
+  background: var(--well);
 }
 
 .callout p {
@@ -515,7 +589,7 @@ kbd {
   padding: 2px 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--surface);
   overflow-wrap: anywhere;
 }
 
@@ -537,44 +611,39 @@ kbd {
   font-weight: 600;
 }
 
-.sub .field {
-  margin-top: 12px;
-}
-
-.key-status {
-  margin-top: 6px;
-  min-height: 0;
-}
-
-.status.good {
-  color: var(--good);
-  font-weight: 600;
-}
-
 .sub {
-  margin-top: 12px;
-  padding-top: 12px;
+  padding: 14px 0;
   border-top: 1px solid var(--line);
 }
 
 .sub > summary {
   display: block;
   font-weight: 600;
+  cursor: pointer;
+}
+
+.sub > summary::-webkit-details-marker {
+  display: none;
 }
 
 .sub > summary::before {
-  content: "▸";
+  content: "+";
   display: inline-block;
-  width: 1.1em;
-  color: var(--muted);
+  width: 1.2em;
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .sub[open] > summary::before {
-  content: "▾";
+  content: "–";
 }
 
 .sub p {
   margin: 10px 0;
+}
+
+.sub .field {
+  margin-top: 12px;
 }
 
 .field-group {
@@ -595,43 +664,268 @@ kbd {
 }
 
 .keys-note {
-  margin: 16px 0 12px;
+  margin-top: 0;
+  margin-bottom: 12px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
 
-/* Result */
+/* ---- pieces ---- */
+
+.dropzone {
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  min-height: 150px;
+  display: grid;
+  align-items: center;
+  background: var(--paper);
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.dropzone.over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.empty {
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  padding: 22px 12px;
+  font: italic 1.25rem/1.3 var(--serif);
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 12px;
+}
+
+.items:empty {
+  display: none;
+}
+
+.item {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(23, 20, 15, 0.06);
+}
+
+.item img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #fff;
+}
+
+.item input {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.875rem;
+  padding: 8px 10px;
+}
+
+.item .remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(23, 20, 15, 0.8);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.item .remove:hover {
+  background: var(--accent);
+}
+
+.add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.link-form {
+  display: flex;
+  gap: 10px;
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.tip {
+  margin: 10px 0 0;
+}
+
+.picker {
+  margin-top: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.picker-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.picker-list button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.picker-list button:hover {
+  border-color: var(--accent);
+}
+
+.picker-list img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+/* ---- look ---- */
+
+.go-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 18px;
+}
+
+.go-row .muted {
+  flex: 1 1 220px;
+}
+
+/* ---- the outfit ---- */
+
+.stage .status {
+  margin-top: 0;
+}
+
+/* Before the first picture: an empty frame the size the picture will be. */
+.placeholder {
+  margin-top: 14px;
+  aspect-ratio: 4 / 5;
+  max-height: 62vh;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+
+.placeholder svg {
+  width: 84px;
+  height: 84px;
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stage:has(.attempt) .placeholder {
+  display: none;
+}
+
+/* While a picture is being made, a slow sheen crosses the empty frame. */
+.stage[aria-busy="true"] .placeholder::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, var(--surface) 50%, transparent 70%);
+  animation: sheen 1.6s linear infinite;
+}
+
+.stage[aria-busy="true"] .placeholder svg {
+  stroke: var(--accent);
+}
+
+.stage[aria-busy="true"] .status::after {
+  content: "";
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: 8px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .attempts {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 20px;
+  gap: 26px;
 }
 
 .attempts:not(:empty) {
   margin-top: 14px;
 }
 
-.attempt {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-
 .attempt img {
   display: block;
   width: 100%;
-  border-radius: 12px;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: #fff;
 }
 
 .attempt.best img {
-  border-color: var(--highlight);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--highlight) 45%, transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.attempt .notes {
+  margin-top: 12px;
 }
 
 .attempt h3 {
@@ -640,6 +934,7 @@ kbd {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  font-size: 1rem;
 }
 
 .badge {
@@ -659,15 +954,9 @@ kbd {
 }
 
 .badge.pick {
-  color: var(--ink);
-  background: var(--highlight);
-  border-color: var(--highlight);
-}
-
-@media (prefers-color-scheme: dark) {
-  .badge.pick {
-    color: #1f1d1a;
-  }
+  color: var(--on-ink);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
 .attempt ul {
@@ -684,22 +973,30 @@ kbd {
 
 a.download {
   display: inline-block;
-  color: var(--ink);
   font-weight: 600;
   text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
 }
 
-/* Past outfits */
+a.download:hover {
+  color: var(--accent);
+}
+
+/* ---- past outfits ---- */
+
+.history-panel h2 {
+  margin-bottom: 4px;
+}
 
 .history {
   list-style: none;
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   padding: 0;
   display: grid;
   /* Two across on a phone, so outfits can be compared side by side there too. */
-  grid-template-columns: repeat(auto-fill, minmax(min(45%, 190px), 1fr));
-  gap: 18px 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(45%, 200px), 1fr));
+  gap: 22px 16px;
 }
 
 .past {
@@ -716,8 +1013,9 @@ a.download {
   background: #fff;
 }
 
-.past-picture:hover {
-  border-color: var(--highlight);
+.past-picture:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: #fff;
 }
 
 .past-picture img {
@@ -725,6 +1023,11 @@ a.download {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: contain;
+  transition: transform 0.25s;
+}
+
+.past-picture:hover img {
+  transform: scale(1.03);
 }
 
 .past p {
@@ -733,6 +1036,7 @@ a.download {
 }
 
 .past .past-pieces {
+  margin-top: 10px;
   font-size: 0.95rem;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -747,7 +1051,7 @@ a.download {
 }
 
 .past-actions button {
-  padding: 6px 10px;
+  padding: 6px 12px;
   font-size: 0.85rem;
 }
 
@@ -757,15 +1061,16 @@ a.download {
 
 .viewer {
   max-width: min(92vw, 900px);
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--panel);
+  background: var(--surface);
   color: var(--ink);
+  box-shadow: var(--shadow);
 }
 
 .viewer::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(10, 9, 7, 0.7);
 }
 
 .viewer img {
@@ -783,7 +1088,7 @@ a.download {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .viewer-foot p {
@@ -791,20 +1096,51 @@ a.download {
   font-size: 0.9rem;
 }
 
+/* ---- small screens and gentler motion ---- */
+
 @media (max-width: 640px) {
+  .masthead,
+  main,
+  .colophon {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
   .masthead {
-    padding-top: 24px;
+    padding-top: 26px;
   }
 
   .panel {
-    padding: 16px;
+    padding: 18px;
   }
 
-  .attempt {
-    grid-template-columns: 1fr;
+  .settings {
+    padding: 0;
+  }
+
+  .settings > summary {
+    padding: 14px 18px;
+  }
+
+  .settings > *:not(summary) {
+    margin-left: 18px;
+    margin-right: 18px;
   }
 
   .field-group {
     grid-template-columns: 1fr;
+  }
+
+  button.primary {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }

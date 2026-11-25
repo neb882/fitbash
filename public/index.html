@@ -11,22 +11,27 @@
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
-    <title>fitbash</title>
+    <title>fitbash · see your clothes as one outfit</title>
     <meta name="description" content="Add pictures of clothes and see them together as one outfit." />
+    <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#12110f" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="fonts/instrument-serif-regular.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="masthead">
       <h1>fitbash</h1>
-      <p>Add pictures of clothes. Get one picture of them together as an outfit.</p>
+      <p>Add pictures of clothes. <em>See them together as one outfit.</em></p>
     </header>
 
     <main>
       <details id="settings" class="panel settings">
         <summary>
+          <span id="settings-dot" class="dot" aria-hidden="true"></span>
           <h2>Setup</h2>
           <span id="settings-summary" class="muted"></span>
+          <span class="chevron" aria-hidden="true"></span>
         </summary>
 
         <p class="lead">
@@ -144,9 +149,11 @@
         <button id="forget" type="button" class="quiet">Forget my keys</button>
       </details>
 
+      <div class="workspace">
+      <div class="controls">
       <section class="panel" aria-labelledby="pieces-heading">
         <div class="panel-head">
-          <h2 id="pieces-heading">1. Add your pieces</h2>
+          <h2 id="pieces-heading"><span class="num">1</span> Add your pieces</h2>
           <span id="count" class="muted"></span>
         </div>
 
@@ -156,7 +163,10 @@
         </div>
 
         <div class="add-row">
-          <button id="browse" type="button" class="quiet strong">Add pictures</button>
+          <button id="browse" type="button" class="quiet strong">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+            Add pictures
+          </button>
           <input id="files" type="file" accept="image/*" multiple hidden />
           <form id="link-form" class="link-form">
             <label for="link" class="visually-hidden">Link to an item or its picture</label>
@@ -177,7 +187,7 @@
       </section>
 
       <section class="panel" aria-labelledby="look-heading">
-        <h2 id="look-heading">2. Pick a look</h2>
+        <h2 id="look-heading"><span class="num">2</span> Pick a look</h2>
         <fieldset class="segmented">
           <legend class="visually-hidden">How to show the outfit</legend>
           <div id="styles" class="segments"></div>
@@ -196,14 +206,22 @@
           <span id="setup" class="muted"></span>
         </div>
       </section>
+      </div>
 
-      <section class="panel" aria-labelledby="result-heading">
-        <h2 id="result-heading">3. Your outfit</h2>
+      <section id="stage" class="panel stage" aria-labelledby="result-heading">
+        <h2 id="result-heading"><span class="num">3</span> Your outfit</h2>
         <p id="progress" class="status" role="status">Your outfit picture shows up here.</p>
+        <div class="placeholder" aria-hidden="true">
+          <svg viewBox="0 0 64 64">
+            <path d="M32 21a5 5 0 1 0-5-5" />
+            <path d="M32 21v5L8 43a3 3 0 0 0 2 5h44a3 3 0 0 0 2-5L32 26" />
+          </svg>
+        </div>
         <ol id="attempts" class="attempts"></ol>
       </section>
+      </div>
 
-      <section id="history" class="panel" aria-labelledby="history-heading" hidden>
+      <section id="history" class="panel history-panel" aria-labelledby="history-heading" hidden>
         <div class="panel-head">
           <h2 id="history-heading">Past outfits</h2>
           <button id="history-clear" type="button" class="quiet">Remove all</button>
@@ -212,6 +230,10 @@
         <ul id="history-list" class="history"></ul>
       </section>
     </main>
+
+    <footer class="colophon">
+      <p>Your keys, pieces and past outfits stay in this browser. fitbash has no server of its own.</p>
+    </footer>
 
     <dialog id="viewer" class="viewer" aria-labelledby="viewer-caption">
       <img id="viewer-picture" alt="" />

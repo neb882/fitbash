@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import zlib from "node:zlib";
 import { chromium, devices } from "playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 
 import { createApp } from "../../server.js";
 
@@ -708,3 +709,46 @@ test("where the browser won't store anything, pictures are still made and the li
   assert.equal(await page.isHidden("#history"), true);
   assert.deepEqual(seen.errors, []);
 });
+
+// An automated accessibility check (contrast, names, roles, labels) of the page's main states.
+// It finds what a machine can find; it does not replace trying the page with a keyboard.
+for (const scheme of ["light", "dark"]) {
+  test(`the page passes automated accessibility checks in the ${scheme} colours`, options, async (t) => {
+    const services = { pictures: [OUTFIT_WRONG, OUTFIT_RIGHT], verdicts: [FAIL, PASS], local: { catalog: localCatalog() } };
+    const { page } = await open(t, { context: { colorScheme: scheme }, services });
+    const problems = async (state) => {
+      const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      return violations.map((v) => `${state}: ${v.id} (${v.nodes.length}) ${v.nodes[0].target.join(" ")} — ${v.nodes[0].failureSummary.split("\n")[1]?.trim()}`);
+    };
+    const found = [];
+
+    found.push(...(await problems("first visit, setup open")));
+
+    await page.click('#providers input[value="local"]', { force: true });
+    await page.click("#local-connect");
+    await page.waitForSelector("#local-models:not([hidden])");
+    found.push(...(await problems("local model steps")));
+
+    await page.click('#providers input[value="gemini"]', { force: true });
+    await page.fill("#provider-key", "GOOD-KEY");
+    await untilText(page, "#provider-key-status", "This key works");
+    for (const summary of await page.locator(".sub summary").all()) await summary.click();
+    await page.fill("#claude-key", "GOOD-CLAUDE");
+    await untilText(page, "#claude-key-status", "This key works");
+    found.push(...(await problems("setup filled in")));
+
+    await page.click("#settings > summary");
+    await addFiles(page, [TEE, JEANS]);
+    await page.fill("#link", "not a link");
+    await page.click("#link-form button");
+    await page.click("#generate");
+    await untilText(page, "#progress", "Done.");
+    await page.waitForSelector(".past");
+    found.push(...(await problems("results and past outfits")));
+
+    await page.click(".past-picture");
+    found.push(...(await problems("a past outfit opened larger")));
+
+    assert.deepEqual(found, []);
+  });
+}
