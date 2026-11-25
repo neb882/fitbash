@@ -7,6 +7,15 @@ import { STYLES, DEFAULT_STYLE } from "./lib/prompt.js";
 import { createProvider, PROVIDERS, DEFAULT_PROVIDER, ProviderError } from "./lib/providers/index.js";
 import { createCritic, DEFAULT_CRITIC_MODEL } from "./lib/critic.js";
 import { checkKey } from "./lib/keycheck.js";
+import {
+  LOCAL_APP,
+  LOCAL_DEFAULT_URL,
+  LOCAL_TIERS,
+  findLocalModels,
+  pickLocalModel,
+  startLocalDownload,
+} from "./lib/providers/local.js";
+import { TIERS, guessTier, readGraphicsName, tidyName } from "./lib/hardware.js";
 
 const MAX_EDGE = 1536; // Item pictures are shrunk to this before they are sent.
 // The check is billed by picture area, and the generated outfit shows each
@@ -15,6 +24,7 @@ const CHECK_EDGE = 1024;
 const MAX_ITEMS = 8;
 const MAX_ATTEMPTS = 2; // One redo when the check finds a problem.
 const SETTINGS_KEY = "fitbash-settings";
+const DOWNLOAD_POLL_MS = 3000; // How often to ask the local app whether a download has finished.
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -38,6 +48,21 @@ const ui = {
   settings: $("settings"),
   settingsSummary: $("settings-summary"),
   providers: $("providers"),
+  keySetup: $("key-setup"),
+  localSetup: $("local-setup"),
+  localTier: $("local-tier"),
+  localAdvice: $("local-advice"),
+  localAppLink: $("local-app-link"),
+  localAppText: $("local-app-text"),
+  localConnect: $("local-connect"),
+  localStatus: $("local-status"),
+  localAllow: $("local-allow"),
+  localAllowCommand: $("local-allow-command"),
+  localAllowCopy: $("local-allow-copy"),
+  localModels: $("local-models"),
+  localModel: $("local-model"),
+  localDownload: $("local-download"),
+  localUrl: $("local-url"),
   providerKeyLink: $("provider-key-link"),
   providerStep1: $("provider-step-1"),
   providerStep2: $("provider-step-2"),
@@ -63,7 +88,13 @@ const state = {
     openaiModel: "",
     claudeKey: "",
     claudeModel: "",
+    localUrl: "",
+    localModel: "", // set once a downloaded model on this computer is chosen
+    localTier: "",
   },
+  // What the app on this computer last told us; not saved.
+  local: { status: "", models: [], downloading: "" },
+  graphics: { name: "", tier: null }, // the browser's best guess at the graphics card
   linkLookup: false, // true when the local helper server answers
   busy: false,
   nextId: 1,
@@ -103,8 +134,11 @@ function saveSettings() {
   }
 }
 
-const imageKey = () => state.settings[`${state.settings.provider}Key`];
-const checkIsOn = () => Boolean(imageKey() && state.settings.claudeKey);
+const isLocal = () => Boolean(PROVIDERS[state.settings.provider].local);
+const imageKey = () => state.settings[`${state.settings.provider}Key`] ?? "";
+/** True once the chosen service, or the model on this computer, can make pictures. */
+const ready = () => Boolean(isLocal() ? state.settings.localModel : imageKey());
+const checkIsOn = () => Boolean(ready() && state.settings.claudeKey);
 
 /** Fill the Setup panel from state, for the chosen image service. */
 function renderSettings() {
@@ -112,26 +146,191 @@ function renderSettings() {
   const chosen = PROVIDERS[settings.provider];
   for (const input of ui.providers.querySelectorAll("input")) input.checked = input.value === settings.provider;
 
-  ui.providerKeyLink.textContent = chosen.openKeyPage;
-  ui.providerKeyLink.href = chosen.keyUrl;
-  ui.providerStep1.textContent = chosen.signIn;
-  ui.providerStep2.textContent = chosen.createKey;
-  ui.providerNote.textContent = chosen.note;
-  ui.providerKey.value = imageKey();
-  ui.providerModel.value = settings[`${settings.provider}Model`];
-  ui.providerModel.placeholder = chosen.defaultModel;
+  ui.keySetup.hidden = isLocal();
+  ui.localSetup.hidden = !isLocal();
+  ui.providerModel.closest(".field").hidden = isLocal();
+  ui.localUrl.closest(".field").hidden = !isLocal();
+  if (isLocal()) {
+    renderLocal();
+  } else {
+    ui.providerKeyLink.textContent = chosen.openKeyPage;
+    ui.providerKeyLink.href = chosen.keyUrl;
+    ui.providerStep1.textContent = chosen.signIn;
+    ui.providerStep2.textContent = chosen.createKey;
+    ui.providerNote.textContent = chosen.note;
+    ui.providerKey.value = imageKey();
+    ui.providerModel.value = settings[`${settings.provider}Model`];
+    ui.providerModel.placeholder = chosen.defaultModel;
+  }
   ui.claudeKey.value = settings.claudeKey;
   ui.claudeModel.value = settings.claudeModel;
   ui.claudeModel.placeholder = DEFAULT_CRITIC_MODEL;
 
-  ui.settingsSummary.textContent = imageKey()
+  ui.settingsSummary.textContent = ready()
     ? `${chosen.label} connected${checkIsOn() ? ", double-check on" : ""}`
     : "Do this once to get real outfit pictures. It takes a few minutes.";
-  ui.setup.textContent = imageKey()
+  ui.setup.textContent = ready()
     ? checkIsOn()
       ? "Each picture is checked against your pieces and redone once if it's off."
       : ""
     : "Setup isn't finished yet, so you'll get a simple collage instead of a real outfit picture.";
+}
+
+// ---- a model on this computer ----------------------------------------------
+
+const localTier = () => state.settings.localTier || state.graphics.tier || "";
+
+function setLocalStatus(text, kind = "") {
+  ui.localStatus.textContent = text;
+  ui.localStatus.classList.toggle("error", kind === "error");
+  ui.localStatus.classList.toggle("good", kind === "good");
+}
+
+const describeModel = (model) =>
+  `${model.id}${model.sizeGb ? ` · ${model.sizeGb} GB` : ""}${model.downloaded ? "" : " · not downloaded yet"}`;
+
+/** Fill the "this computer" steps from state. */
+function renderLocal() {
+  const { settings, local, graphics } = state;
+  const tier = localTier();
+  ui.localTier.value = tier;
+  // Name the card only when it is one the guess was read from; anything else would be noise.
+  const recognised = graphics.tier && graphics.tier !== "none" && !settings.localTier;
+  const seen = recognised ? `This looks like ${tidyName(graphics.name)}. ` : "";
+  ui.localAdvice.textContent = tier ? seen + LOCAL_TIERS[tier].advice : seen;
+  ui.localAppLink.textContent = `Get ${LOCAL_APP.name}`;
+  ui.localAppLink.href = LOCAL_APP.url;
+  ui.localAppText.textContent = `Install this free app and open it. It runs the picture model on your computer.`;
+  ui.localUrl.value = settings.localUrl;
+  ui.localUrl.placeholder = LOCAL_DEFAULT_URL;
+
+  ui.localAllow.hidden = local.status !== "refused";
+  ui.localAllowCommand.textContent = `lemonade config set allowed_origins="${location.origin}"`;
+
+  const showModels = local.status === "connected" && local.models.length > 0;
+  ui.localModels.hidden = !showModels;
+  if (showModels) {
+    const current = ui.localModel.value;
+    ui.localModel.replaceChildren(
+      ...local.models.map((model) => el("option", { value: model.id, text: describeModel(model) })),
+    );
+    const wanted =
+      [settings.localModel, local.downloading, current].find((id) => id && local.models.some((m) => m.id === id)) ??
+      pickLocalModel(local.models, tier);
+    ui.localModel.value = wanted;
+    const chosenModel = local.models.find((model) => model.id === wanted);
+    ui.localDownload.hidden = chosenModel.downloaded || Boolean(local.downloading);
+    ui.localModel.disabled = Boolean(local.downloading);
+  }
+}
+
+/** Use the model picked in the list if it is on this computer; otherwise leave Setup unfinished. */
+function adoptLocalModel() {
+  const model = state.local.models.find((m) => m.id === ui.localModel.value);
+  state.settings.localModel = model?.downloaded ? model.id : "";
+  saveSettings();
+  if (!model) return;
+  if (model.downloaded) setLocalStatus("Connected and ready.", "good");
+  else if (!state.local.downloading) {
+    setLocalStatus(`Connected. This model has to be downloaded first${model.sizeGb ? ` (${model.sizeGb} GB)` : ""}.`);
+  }
+}
+
+async function connectLocal() {
+  setLocalStatus("Looking for the app…");
+  ui.localConnect.disabled = true;
+  const found = await findLocalModels(state.settings.localUrl);
+  ui.localConnect.disabled = false;
+  state.local.status = found.status;
+  state.local.models = found.models ?? [];
+
+  if (found.status === "unreachable") {
+    const safari = location.protocol === "https:" && navigator.vendor === "Apple Computer, Inc.";
+    setLocalStatus(
+      safari
+        ? "Safari doesn't let a website reach apps on your computer. Open this page in Chrome, Edge or Firefox instead."
+        : `Couldn't find the app. Check that ${LOCAL_APP.name} is open. If your browser asks whether this site may reach apps on your device, choose Allow.`,
+      "error",
+    );
+  } else if (found.status === "refused") {
+    setLocalStatus("");
+  } else if (found.models.length === 0) {
+    setLocalStatus("Connected, but the app has no model that can combine several pictures.", "error");
+  }
+  renderSettings();
+  if (found.status === "connected" && found.models.length > 0) {
+    adoptLocalModel();
+    renderSettings();
+  }
+}
+
+async function downloadLocalModel() {
+  const id = ui.localModel.value;
+  const model = state.local.models.find((m) => m.id === id);
+  state.local.downloading = id;
+  renderSettings();
+  setLocalStatus("Asking the app to download the model…");
+  if (!(await startLocalDownload(state.settings.localUrl, id))) {
+    state.local.downloading = "";
+    renderSettings();
+    setLocalStatus(
+      `The app wouldn't start the download. Download "${id}" inside ${LOCAL_APP.name} (Model Manager), then press Connect.`,
+      "error",
+    );
+    return;
+  }
+  setLocalStatus(
+    `Downloading${model?.sizeGb ? ` ${model.sizeGb} GB` : ""}. Keep ${LOCAL_APP.name} and this page open; it can take a while.`,
+  );
+  // The app reports the model as downloaded when it is done.
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_MS));
+    if (state.local.downloading !== id) return;
+    const found = await findLocalModels(state.settings.localUrl);
+    if (found.status !== "connected") continue; // The app may be busy; keep asking.
+    state.local.models = found.models;
+    if (found.models.find((m) => m.id === id)?.downloaded) break;
+  }
+  state.local.downloading = "";
+  renderSettings();
+  adoptLocalModel();
+  renderSettings();
+}
+
+function wireLocal() {
+  ui.localTier.replaceChildren(
+    el("option", { value: "", text: "Choose…" }),
+    ...Object.entries(TIERS).map(([id, label]) => el("option", { value: id, text: label })),
+  );
+  ui.localTier.addEventListener("change", () => {
+    state.settings.localTier = ui.localTier.value;
+    saveSettings();
+    renderSettings();
+  });
+  ui.localConnect.addEventListener("click", connectLocal);
+  ui.localModel.addEventListener("change", () => {
+    adoptLocalModel();
+    renderSettings();
+  });
+  ui.localDownload.addEventListener("click", downloadLocalModel);
+  ui.localAllowCopy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(ui.localAllowCommand.textContent);
+      ui.localAllowCopy.textContent = "Copied";
+    } catch {
+      // No clipboard access: select the line so it can be copied by hand.
+      getSelection().selectAllChildren(ui.localAllowCommand);
+    }
+  });
+  ui.localUrl.addEventListener("input", () => {
+    state.settings.localUrl = ui.localUrl.value.trim();
+    // A different address is a different app: what the old one said no longer holds.
+    state.settings.localModel = "";
+    state.local = { status: "", models: [], downloading: "" };
+    saveSettings();
+    setLocalStatus("");
+    renderSettings();
+  });
 }
 
 const KEY_MESSAGES = {
@@ -188,6 +387,8 @@ function wireSettings() {
   bind(ui.claudeModel, () => "claudeModel");
   const providerStatus = watchKey(ui.providerKey, ui.providerKeyStatus, () => state.settings.provider);
   const claudeStatus = watchKey(ui.claudeKey, ui.claudeKeyStatus, () => "claude");
+
+  wireLocal();
 
   ui.providers.addEventListener("change", (event) => {
     state.settings.provider = event.target.value;
@@ -498,9 +699,10 @@ function markBest(best, attempts) {
 
 function handleEvent(event, maxAttempts) {
   const of = maxAttempts > 1 ? ` (attempt ${event.attempt} of up to ${maxAttempts})` : "";
+  const wait = isLocal() && ready() ? "On your own computer this can take a few minutes." : "This can take a minute.";
   switch (event.type) {
     case "generating":
-      setProgress(event.attempt === 1 ? `Making the picture${of}. This can take a minute.` : `Redoing it with the check's notes${of}.`);
+      setProgress(event.attempt === 1 ? `Making the picture${of}. ${wait}` : `Redoing it with the check's notes${of}.`);
       break;
     case "image":
       showImage(event.attempt, event.image);
@@ -516,7 +718,7 @@ function handleEvent(event, maxAttempts) {
       break;
     case "done":
       markBest(event.best, event.attempts);
-      setProgress(imageKey() ? "Done." : "This is only a collage of your pieces. Finish Setup at the top of the page to get a real outfit picture.");
+      setProgress(ready() ? "Done." : "This is only a collage of your pieces. Finish Setup at the top of the page to get a real outfit picture.");
       break;
   }
 }
@@ -531,8 +733,8 @@ async function generate() {
 
   const { settings } = state;
   try {
-    // Until a key is connected, the keyless stand-in shows what the page does.
-    const provider = createProvider(imageKey() ? settings : { provider: "mock" });
+    // Until setup is finished, the keyless stand-in shows what the page does.
+    const provider = createProvider(ready() ? settings : { provider: "mock" });
     const critic = checkIsOn()
       ? createCritic({ apiKey: settings.claudeKey, model: settings.claudeModel || DEFAULT_CRITIC_MODEL })
       : null;
@@ -643,7 +845,12 @@ async function start() {
   renderItems();
 
   // First visit: show the setup steps instead of hiding them behind a click.
-  if (!imageKey()) ui.settings.open = true;
+  if (!ready()) ui.settings.open = true;
+
+  // A guess at the graphics card, for the "this computer" choice. It only pre-fills a question.
+  state.graphics.name = await readGraphicsName();
+  state.graphics.tier = guessTier(state.graphics.name);
+  renderSettings();
 
   state.linkLookup = await detectHelper();
   const touch = window.matchMedia("(pointer: coarse)").matches;

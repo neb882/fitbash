@@ -41,13 +41,15 @@ test("the page works from a subfolder on a static host", async () => {
   assert.deepEqual(html.match(/(?:src|href)="\/[^"]*"/g), null);
   assert.match(html, /http-equiv="Content-Security-Policy"/);
   assert.match(html, /script-src 'self'/);
-  // The page may talk only to itself and the three AI providers.
+  // The page may talk only to itself, the three AI providers, and an app on the visitor's own computer.
   const connect = html.match(/connect-src ([^;]+);/)[1].split(" ");
   assert.deepEqual(connect, [
     "'self'",
     "https://generativelanguage.googleapis.com",
     "https://api.openai.com",
     "https://api.anthropic.com",
+    "http://localhost:*",
+    "http://127.0.0.1:*",
   ]);
 
   const app = await readFile(new URL("../public/app.js", import.meta.url), "utf8");

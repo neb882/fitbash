@@ -3,11 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Scripts come only from this site, and the page may talk only to itself
-         and the three AI providers. That keeps saved API keys from going anywhere else. -->
+    <!-- Scripts come only from this site, and the page may talk only to itself, the
+         three AI providers, and an app on the visitor's own computer. That keeps saved
+         API keys from going anywhere else. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
     <title>fitbash</title>
@@ -29,16 +30,17 @@
         </summary>
 
         <p class="lead">
-          fitbash asks an AI image service to make your outfit picture. The service charges a few cents per picture
-          and bills you directly, so you connect your own account using a <strong>key</strong>: a long code that
-          works like a password. You only do this once.
+          fitbash asks an AI image model to make your outfit picture. You can connect a paid service, which charges
+          you a few cents per picture, or run a free model on your own computer if it has a good graphics card. You
+          only do this once.
         </p>
 
         <fieldset class="segmented">
-          <legend class="field-label">Which service?</legend>
+          <legend class="field-label">Where should pictures be made?</legend>
           <div id="providers" class="segments"></div>
         </fieldset>
 
+        <div id="key-setup">
         <ol class="steps">
           <li>
             <a id="provider-key-link" class="button" target="_blank" rel="noopener noreferrer">Open the key page</a>
@@ -52,6 +54,54 @@
           </li>
         </ol>
         <p id="provider-note" class="muted"></p>
+        </div>
+
+        <div id="local-setup" hidden>
+          <ol class="steps">
+            <li>
+              <label for="local-tier">What kind of computer is this?</label>
+              <select id="local-tier"></select>
+              <p id="local-advice" class="muted step-note"></p>
+            </li>
+            <li>
+              <a id="local-app-link" class="button" target="_blank" rel="noopener noreferrer">Get the app</a>
+              <span id="local-app-text"></span>
+            </li>
+            <li>
+              <button id="local-connect" type="button" class="quiet strong">Connect</button>
+              <span>Press this once the app is open.</span>
+              <p id="local-status" class="status key-status" role="status"></p>
+
+              <div id="local-allow" class="callout" hidden>
+                <p>The app is open but doesn't accept this website yet. To allow it, once:</p>
+                <ol>
+                  <li>
+                    Open a terminal. On Windows, press Start, type <kbd>cmd</kbd> and press Enter. On a Mac, open
+                    Terminal from Applications, Utilities.
+                  </li>
+                  <li>
+                    Paste this line there and press Enter:
+                    <span class="command">
+                      <code id="local-allow-command"></code>
+                      <button id="local-allow-copy" type="button" class="quiet">Copy</button>
+                    </span>
+                  </li>
+                  <li>Close the app, open it again, and press Connect.</li>
+                </ol>
+              </div>
+
+              <div id="local-models" class="model-row" hidden>
+                <label for="local-model">Model</label>
+                <select id="local-model"></select>
+                <button id="local-download" type="button" class="quiet strong" hidden>Download it</button>
+              </div>
+            </li>
+          </ol>
+          <p class="muted">
+            Pictures made on your own computer cost nothing. They are usually less exact than a paid service's,
+            especially on prints and lettering, and the first one takes longer while the model loads.
+          </p>
+        </div>
 
         <details class="sub">
           <summary>Optional: double-check every picture</summary>
@@ -70,7 +120,7 @@
 
         <details class="sub">
           <summary>Advanced</summary>
-          <p class="muted">Leave these empty unless a service has renamed its model.</p>
+          <p class="muted">Leave these empty unless a service has renamed its model or the app uses another address.</p>
           <div class="field-group">
             <div class="field">
               <label for="provider-model" class="field-label">Image model name</label>
@@ -80,6 +130,10 @@
               <label for="claude-model" class="field-label">Claude model name</label>
               <input id="claude-model" type="text" autocomplete="off" spellcheck="false" />
             </div>
+          </div>
+          <div class="field">
+            <label for="local-url" class="field-label">Address of the app on this computer</label>
+            <input id="local-url" type="url" autocomplete="off" spellcheck="false" />
           </div>
         </details>
 

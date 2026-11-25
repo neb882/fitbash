@@ -113,7 +113,7 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, ...context });
   const page = await ctx.newPage();
   page.setDefaultTimeout(15_000); // A page that never comes up should fail a test quickly, not hang it.
-  const seen = { errors: [], failed: [], google: [], openai: [], claude: [] };
+  const seen = { errors: [], failed: [], google: [], openai: [], claude: [], local: [] };
   page.on("pageerror", (error) => seen.errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error" && /Content Security Policy/i.test(message.text())) seen.errors.push(message.text());
@@ -180,6 +180,37 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
     });
   });
 
+  // The app on the visitor's own computer. `services.local` is read on every request, so a
+  // test can install the app, make it refuse the website, or change its models as it goes.
+  await page.route("http://localhost:13305/**", (route) => {
+    const request = route.request();
+    const local = services.local;
+    if (!local) return route.abort("connectionrefused");
+    // A real browser hides a cross-site refusal: the page's request simply fails. Only a
+    // request that asks to read nothing (no-cors) gets through, which is how the page tells
+    // "refusing" from "not there".
+    // (The browser sends an Origin header only with the kind of request that may read the answer.)
+    if (local.refuse) {
+      return request.headers()["origin"] ? route.abort("failed") : route.fulfill({ status: 403, body: "" });
+    }
+    if (request.method() === "OPTIONS") return preflight(route);
+    const path = new URL(request.url()).pathname;
+    if (path === "/v1/models") return json(route, 200, { object: "list", data: local.catalog });
+    if (path === "/v1/pull") {
+      const { model_name: name } = request.postDataJSON();
+      seen.local.push({ pull: name });
+      local.catalog = local.catalog.map((model) => (model.id === name ? { ...model, downloaded: true } : model));
+      return json(route, 200, { status: "success" });
+    }
+    if (path === "/v1/images/edits") {
+      const raw = request.postDataBuffer().toString("latin1");
+      const field = (name) => new RegExp(`name="${name}"\r\n\r\n([^\r]+)`).exec(raw)?.[1];
+      seen.local.push({ model: field("model"), size: field("size"), pictures: raw.match(/name="image\[\]"/g)?.length ?? 0 });
+      return json(route, 200, { created: 1, data: [{ b64_json: OUTFIT_RIGHT }], output_format: "png" });
+    }
+    route.fulfill({ status: 404, headers: CORS, body: "" });
+  });
+
   for (const [pictureUrl, handler] of Object.entries(services.web ?? {})) await page.route(pictureUrl, handler);
 
   t.after(() => ctx.close());
@@ -202,6 +233,13 @@ const FAIL = {
   verdict: "fail",
   fix_instructions: "Item 1: the print must be yellow.",
 };
+
+// What the local app lists, in the shape its documentation gives.
+const localCatalog = () => [
+  { id: "SD-Turbo", size: 5.21, downloaded: true, labels: ["image"] },
+  { id: "Flux-2-Klein-9B-GGUF", size: 19, downloaded: false, labels: ["image", "edit"] },
+  { id: "Flux-2-Klein-4B", size: 16.1, downloaded: false, labels: ["image", "edit"] },
+];
 
 const text = (page, selector) => page.textContent(selector);
 const untilText = (page, selector, part) =>
@@ -428,10 +466,22 @@ test("a picture pasted from the clipboard is added, and an outfit stops at eight
 });
 
 test("the page fits a phone and tells touch users what to tap", options, async (t) => {
-  const { page } = await open(t, { context: devices["Pixel 7"], services: { verdicts: [FAIL, PASS] } });
+  const services = { verdicts: [FAIL, PASS], local: { catalog: localCatalog() } };
+  const { page } = await open(t, { context: devices["Pixel 7"], services });
   assert.match(await text(page, "#empty"), /Tap “Add pictures”/);
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.equal(await overflow(), 0, "with setup open");
+
+  // The "this computer" steps carry the longest labels: a model's name with its size.
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.click("#local-connect");
+  await page.waitForSelector("#local-models:not([hidden])");
+  assert.equal(await overflow(), 0, "with the local models listed");
+  services.local.refuse = true;
+  await page.click("#local-connect");
+  await page.waitForSelector("#local-allow:not([hidden])");
+  assert.equal(await overflow(), 0, "with the allow-this-website steps showing");
+  await page.click('#providers input[value="gemini"]', { force: true });
 
   await page.fill("#provider-key", "GOOD-KEY");
   await page.click(".sub summary");
@@ -441,4 +491,78 @@ test("the page fits a phone and tells touch users what to tap", options, async (
   await untilText(page, "#progress", "Done.");
   assert.equal(await page.locator(".attempt").count(), 2);
   assert.equal(await overflow(), 0, "with results showing");
+});
+
+test("a free model on the visitor's own computer: connect, download the suggested model, make a picture", options, async (t) => {
+  const services = { local: { catalog: localCatalog() } };
+  const { page, seen } = await open(t, { services });
+
+  await page.click('#providers input[value="local"]', { force: true });
+  assert.equal(await page.isHidden("#key-setup"), true);
+  assert.equal(await page.isVisible("#local-setup"), true);
+  assert.equal(await page.getAttribute("#local-app-link", "href"), "https://lemonade-server.ai");
+
+  await page.selectOption("#local-tier", "medium");
+  assert.match(await text(page, "#local-advice"), /good fit for the standard model/);
+
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "has to be downloaded first (16.1 GB)");
+  // Only the models that can combine pictures are offered, the one that fits this computer first.
+  assert.deepEqual(
+    await page.$$eval("#local-model option", (nodes) => nodes.map((node) => node.value)),
+    ["Flux-2-Klein-9B-GGUF", "Flux-2-Klein-4B"],
+  );
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-4B");
+  assert.match(await text(page, "#settings-summary"), /Do this once/);
+
+  await page.click("#local-download");
+  await untilText(page, "#local-status", "Connected and ready.");
+  assert.deepEqual(seen.local, [{ pull: "Flux-2-Klein-4B" }]);
+  assert.equal(await page.isHidden("#local-download"), true);
+  assert.equal(await text(page, "#settings-summary"), "This computer connected");
+
+  await addFiles(page, [TEE, JEANS]);
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  assert.deepEqual(seen.local[1], { model: "Flux-2-Klein-4B", size: "1024x1024", pictures: 2 });
+  assert.match(await page.getAttribute(".attempt img", "src"), /^data:image\/png;base64,/);
+  assert.equal(seen.google.length + seen.openai.length + seen.claude.length, 0);
+
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  assert.equal(await page.evaluate(() => document.querySelector("#settings").open), false);
+  assert.equal(await text(page, "#settings-summary"), "This computer connected");
+  assert.deepEqual(seen.errors, []);
+});
+
+test("a missing local app says so, and one that refuses this website shows how to allow it", options, async (t) => {
+  const services = {};
+  const { page, seen } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "large");
+
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Couldn't find the app");
+  assert.equal(await page.isHidden("#local-allow"), true);
+
+  services.local = { refuse: true, catalog: localCatalog() };
+  await page.click("#local-connect");
+  await page.waitForSelector("#local-allow:not([hidden])");
+  const origin = await page.evaluate(() => location.origin);
+  assert.equal(await text(page, "#local-allow-command"), `lemonade config set allowed_origins="${origin}"`);
+  assert.equal(await page.isHidden("#local-models"), true);
+
+  services.local.refuse = false;
+  services.local.catalog = localCatalog().map((model) => ({ ...model, downloaded: true }));
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  assert.equal(await page.isHidden("#local-allow"), true);
+  // A computer with a large graphics card is offered the larger model.
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-9B-GGUF");
+
+  // Choosing a paid service again brings its key steps back.
+  await page.click('#providers input[value="gemini"]', { force: true });
+  assert.equal(await page.isVisible("#key-setup"), true);
+  assert.equal(await page.isHidden("#local-setup"), true);
+  assert.deepEqual(seen.errors, []);
 });

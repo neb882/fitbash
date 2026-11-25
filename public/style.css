@@ -318,9 +318,11 @@ button:disabled {
   border: 0;
   margin: 0 0 14px;
   padding: 0;
+  min-width: 0; /* a fieldset otherwise refuses to be narrower than its longest label */
 }
 
 .segments {
+  max-width: 100%;
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -397,6 +399,16 @@ button:disabled {
   margin-top: 16px;
 }
 
+select {
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
 /* Settings */
 
 .settings summary {
@@ -438,6 +450,10 @@ button:disabled {
   gap: 14px;
 }
 
+.steps > li {
+  min-width: 0; /* lets long model names and commands wrap on a phone */
+}
+
 .steps li::marker {
   font-weight: 700;
 }
@@ -460,6 +476,69 @@ a.button {
 
 a.button::after {
   content: " ↗";
+}
+
+.step-note {
+  margin: 6px 0 0;
+}
+
+.callout {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.callout p {
+  margin: 0;
+}
+
+.callout ol {
+  margin: 8px 0 0;
+  padding-left: 1.3em;
+  display: grid;
+  gap: 8px;
+}
+
+.command {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+code,
+kbd {
+  font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+
+.model-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.model-row select {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.model-row label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.sub .field {
+  margin-top: 12px;
 }
 
 .key-status {

@@ -41,6 +41,24 @@ Things worth knowing before you start:
 
 The Gemini and OpenAI connections were written from the services' documentation and are covered by tests that pin the documented request and response shapes. They have not yet been run against the live services, so expect to fix a detail or two on first use.
 
+## Free alternative: a model on your own computer
+
+If your computer has a good graphics card, it can make the pictures itself, at no cost. In Setup choose **This computer** and follow its three steps:
+
+1. Say what kind of computer it is. The page often recognises the graphics card and suggests an answer; it cannot read how much memory the card has, so check the suggestion.
+2. Install [Lemonade](https://lemonade-server.ai), a free app that runs AI models locally, and open it.
+3. Press **Connect**. The page finds the app, offers the model that suits your computer, and can start the download for you (the standard model is about 16 GB).
+
+Things worth knowing:
+
+- **It needs Chrome, Edge or Firefox.** They ask once whether this site may reach apps on your device; choose Allow. Safari does not permit it, so it does not work on iPhones or iPads either.
+- **On the website, the app has to be told to accept it,** once, with one line pasted into a terminal. The page shows the exact line when it is needed. Running fitbash locally (`npm start`) needs no such step.
+- **Speed depends on the graphics card.** A recent card makes a picture in seconds to a minute; without one it can take many minutes, and a paid service is the practical choice.
+- **Local models are less exact** than the paid services, most of all on prints and lettering. The quality check below still works with a local model, and still costs its few cents.
+- Any app that offers the same interface works: put its address under **Advanced** in Setup (for example `http://127.0.0.1:1234/v1` for stable-diffusion.cpp's server, started with this site in its `--cors-origins`).
+
+This path was written from Lemonade's documentation and is tested against a stand-in for the app. It has not yet been run against the real app on real hardware, so expect to fix a detail or two on first use.
+
 ## The quality check
 
 Image models often return a polished picture that has quietly changed what matters: a graphic tee's print redrawn, a color shifted, a piece left out. If you also add a Claude key under **Optional: double-check every picture** in Setup, every generated picture goes to Claude along with your item pictures. Claude reports per item whether it is present and true to its picture. When something is off, fitbash regenerates once with Claude's notes, shows both attempts with their verdicts, and marks the better one.
@@ -62,8 +80,8 @@ An outfit takes up to 8 pieces. Pictures are shrunk to 1536 pixels on the long s
 ## Your keys and pictures
 
 - Keys are saved in your browser's local storage and nowhere else. **Forget my keys** in Setup removes them.
-- Requests go straight from your browser to the provider the key belongs to. The page's content security policy allows it to contact only itself, Google, OpenAI and Anthropic, and to run only its own scripts.
-- Nothing is stored by fitbash: no accounts, no database, no analytics. Your item pictures go to the image provider you chose, and to Anthropic if the quality check is on, under those providers' terms.
+- Requests go straight from your browser to the provider the key belongs to. The page's content security policy allows it to contact only itself, Google, OpenAI, Anthropic and an app on your own computer, and to run only its own scripts.
+- Nothing is stored by fitbash: no accounts, no database, no analytics. Your item pictures go to the image provider you chose, and to Anthropic if the quality check is on, under those providers' terms. With a model on your own computer and the check off, they go nowhere.
 - A key kept in a browser can be read by anyone with access to that browser profile. Use keys with a spending limit, and don't save them on a shared computer.
 
 ## How it is put together
@@ -75,7 +93,8 @@ public/                      the whole app; this folder is what GitHub Pages ser
   lib/prompt.js              the instruction sent to the image model, and the three looks
   lib/critic.js              the Claude check (structured verdict per item)
   lib/keycheck.js            tells a person whether a pasted key works, at no cost
-  lib/providers/             gemini, openai and mock image models behind one generate() call
+  lib/providers/             gemini, openai, local and mock image models behind one generate() call
+  lib/hardware.js            guesses the graphics card's size tier, to suggest a local model
   vendor/anthropic-sdk.js    browser build of the official Anthropic SDK (generated, see below)
 server.js                    optional local server: serves public/ and adds link lookup
 src/extract.js               product link to candidate pictures
@@ -88,7 +107,7 @@ test/browser/                the page driven in a real browser
 
 There is no build step. The one generated file is `public/vendor/anthropic-sdk.js`, a single-file browser copy of `@anthropic-ai/sdk` that is committed so the static site can load it. After changing the SDK version in `package.json`, run `npm install && npm run vendor` to rebuild it.
 
-To add another image model, write a module in `public/lib/providers/` that exports a factory returning `{ name, model, generate({ prompt, images, aspectRatio }) }` and resolves to `{ mimeType, data }` (base64). Register it in `public/lib/providers/index.js`, and add its API host to `connect-src` in `public/index.html`. The provider's API has to accept requests from browsers (CORS).
+To add another image model, write a module in `public/lib/providers/` that exports a factory returning `{ name, model, generate({ prompt, images, aspectRatio }) }` and resolves to `{ mimeType, data }` (base64). Register it in `public/lib/providers/index.js`, and add its API host to `connect-src` in `public/index.html` (an app on the visitor's own computer is already covered). The provider's API has to accept requests from browsers (CORS).
 
 ## Tests
 

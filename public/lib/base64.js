@@ -16,3 +16,10 @@ export function textToBase64(text) {
   }
   return btoa(binary);
 }
+
+/** A picture's format, read off its first bytes as they appear in base64. */
+export function sniffImageType(base64) {
+  if (base64.startsWith("/9j/")) return "image/jpeg";
+  if (base64.startsWith("UklGR")) return "image/webp";
+  return "image/png";
+}

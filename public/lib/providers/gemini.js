@@ -2,16 +2,9 @@
 // Request and response shapes follow the image generation guide as of 2026-11.
 
 import { ProviderError, errorFromResponse, send } from "./errors.js";
+import { sniffImageType } from "../base64.js";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
-
-// The response doesn't reliably name the picture's format, so read it off the
-// first bytes (as they appear in base64).
-function sniffMimeType(base64) {
-  if (base64.startsWith("/9j/")) return "image/jpeg";
-  if (base64.startsWith("UklGR")) return "image/webp";
-  return "image/png";
-}
 
 export function parseGeminiImage(body) {
   let image = null;
@@ -22,7 +15,8 @@ export function parseGeminiImage(body) {
     }
   }
   if (!image) return null;
-  return { mimeType: image.mime_type || sniffMimeType(image.data), data: image.data };
+  // The response doesn't reliably name the picture's format, so fall back to reading it off the data.
+  return { mimeType: image.mime_type || sniffImageType(image.data), data: image.data };
 }
 
 export function createGeminiProvider({ apiKey, model, fetchImpl = fetch }) {

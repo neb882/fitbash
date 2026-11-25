@@ -1,6 +1,7 @@
 import { createGeminiProvider } from "./gemini.js";
 import { createOpenAIProvider } from "./openai.js";
 import { createMockProvider } from "./mock.js";
+import { createLocalProvider } from "./local.js";
 import { ProviderError } from "./errors.js";
 
 export { ProviderError };
@@ -29,14 +30,21 @@ export const PROVIDERS = {
     createKey: "Press “Create new secret key” there, then copy the key it shows you.",
     note: "OpenAI only makes pictures once you have added credit and verified your identity in its settings. Google is usually quicker.",
   },
+  // No key and no bill: a model on the person's own computer. Setup shows
+  // different steps for it (public/lib/providers/local.js).
+  local: {
+    label: "This computer",
+    hint: "free, needs a good graphics card",
+    local: true,
+  },
 };
 
 export const DEFAULT_PROVIDER = "gemini";
 
 /**
  * Build the image provider for a person's settings. Any provider other than
- * the two real ones gives the keyless collage stand-in.
- * @param {{provider: string, geminiKey?: string, geminiModel?: string, openaiKey?: string, openaiModel?: string}} settings
+ * the real ones gives the keyless collage stand-in.
+ * @param {{provider: string, geminiKey?: string, geminiModel?: string, openaiKey?: string, openaiModel?: string, localUrl?: string, localModel?: string}} settings
  */
 export function createProvider(settings) {
   switch (settings.provider) {
@@ -53,6 +61,9 @@ export function createProvider(settings) {
         model: settings.openaiModel || PROVIDERS.openai.defaultModel,
         quality: "medium",
       });
+    case "local":
+      if (!settings.localModel) throw new ProviderError("Connect to the app on your computer in Setup first.");
+      return createLocalProvider({ baseUrl: settings.localUrl, model: settings.localModel });
     default:
       return createMockProvider();
   }
