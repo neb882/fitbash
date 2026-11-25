@@ -26,6 +26,7 @@ import {
   saveOutfit,
 } from "./lib/history.js";
 import { base64ToBytes } from "./lib/base64.js";
+import { watchForUpdates } from "./lib/update.js";
 
 const MAX_EDGE = 1536; // Item pictures are shrunk to this before they are sent.
 // The check is billed by picture area, and the generated outfit shows each
@@ -1000,6 +1001,11 @@ async function start() {
   wireSettings();
   wireHistory();
   renderHistory();
+
+  // A newer version of the site: say so, and leave the reloading to the visitor.
+  $("update-reload").addEventListener("click", () => location.reload());
+  $("update-later").addEventListener("click", () => ($("update-notice").hidden = true));
+  watchForUpdates(() => ($("update-notice").hidden = false));
   renderSettings();
   ui.styles.replaceChildren(
     ...Object.entries(STYLES).map(([id, style]) => {

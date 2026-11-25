@@ -58,12 +58,15 @@ async function readJson(req) {
   }
 }
 
-/** Builds the request handler. `fetchOptions` lets tests reach local servers. */
-export function createApp({ fetchOptions = {} } = {}) {
+/**
+ * Builds the request handler. `fetchOptions` lets tests reach local servers,
+ * and `publicDir` lets them serve another copy of the site.
+ */
+export function createApp({ fetchOptions = {}, publicDir = PUBLIC_DIR } = {}) {
   async function serveStatic(req, res, pathname) {
     const relative = pathname.endsWith("/") ? `${pathname.slice(1)}index.html` : pathname.slice(1);
-    const file = path.join(PUBLIC_DIR, relative);
-    if (!file.startsWith(PUBLIC_DIR + path.sep)) throw new HttpError(404, "Not found.");
+    const file = path.join(publicDir, relative);
+    if (!file.startsWith(publicDir + path.sep)) throw new HttpError(404, "Not found.");
     let body;
     try {
       body = await readFile(file);

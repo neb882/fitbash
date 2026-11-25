@@ -283,6 +283,10 @@ test("a first visit on a static host shows the setup steps and gives a collage u
   assert.match(await page.getAttribute(".attempt img", "src"), /^data:image\/svg\+xml;base64,/);
   assert.equal(seen.google.length + seen.openai.length + seen.claude.length, 0);
 
+  // An unstamped copy of the site (this one, and anyone's local copy) registers no service worker.
+  assert.equal(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length), 0);
+  assert.equal(await page.isHidden("#update-notice"), true);
+
   // Only the probe for the local helper may fail; every script, style and module must load from the subfolder.
   assert.deepEqual(seen.failed, ["/fitbash/api/config"]);
   assert.deepEqual(seen.errors, []);
@@ -723,6 +727,11 @@ for (const scheme of ["light", "dark"]) {
     const found = [];
 
     found.push(...(await problems("first visit, setup open")));
+
+    // The notice of a newer version only appears on a deployed copy; show it here to check its colours.
+    await page.evaluate(() => (document.getElementById("update-notice").hidden = false));
+    found.push(...(await problems("the newer-version notice")));
+    await page.click("#update-later");
 
     await page.click('#providers input[value="local"]', { force: true });
     await page.click("#local-connect");

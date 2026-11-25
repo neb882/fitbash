@@ -88,6 +88,14 @@ Each outfit picture you make is kept under **Past outfits** at the bottom of the
 
 The page keeps the newest 24 and drops older ones. They are stored in your browser only, together with the item pictures that made them, and never sent anywhere. Clearing the site's data in your browser removes them, and a private window keeps nothing.
 
+## When a newer version is out
+
+If the site is updated while you have it open, a bar appears at the top: "A newer version of fitbash is out." Press **Reload** to get it, or **Later** to finish what you're doing first. The page never reloads by itself, because the pieces you have added exist only in the open page; your past outfits and your keys are kept either way.
+
+Opening the site always gives you the newest version. It also keeps a copy of itself in your browser, so the page still opens without a connection (making pictures needs one, unless the model runs on your own computer).
+
+If you run fitbash from your own copy with `npm start`, there is no notice: update it the way you got it, for example with `git pull`.
+
 ## Your keys and pictures
 
 - Keys are saved in your browser's local storage and nowhere else. **Forget my keys** in Setup removes them.
@@ -107,6 +115,8 @@ public/                      the whole app; this folder is what GitHub Pages ser
   lib/providers/             gemini, openai, local and mock image models behind one generate() call
   lib/hardware.js            guesses the graphics card's size tier, to suggest a local model
   lib/history.js             past outfits, kept in the browser's own storage
+  lib/update.js              notices that a newer version of the site is out
+  sw.js                      service worker: always-fresh files, an offline copy, and the site's version
   vendor/anthropic-sdk.js    browser build of the official Anthropic SDK (generated, see below)
   fonts/                     the heading typeface, Instrument Serif, served from this site (SIL Open Font License, in OFL.txt)
 server.js                    optional local server: serves public/ and adds link lookup
@@ -115,7 +125,8 @@ src/safe-fetch.js            fetching pasted links without reaching private netw
 test/                        unit tests for all of the above
 test/browser/                the page driven in a real browser
 .github/workflows/test.yml   runs every test on each push
-.github/workflows/pages.yml  runs the tests, then publishes public/ to GitHub Pages
+.github/workflows/pages.yml  runs the tests, stamps the version, then publishes public/ to GitHub Pages
+scripts/stamp-version.sh     writes a fingerprint of the site's files into the page and the service worker
 ```
 
 There is no build step. The one generated file is `public/vendor/anthropic-sdk.js`, a single-file browser copy of `@anthropic-ai/sdk` that is committed so the static site can load it. After changing the SDK version in `package.json`, run `npm install && npm run vendor` to rebuild it.

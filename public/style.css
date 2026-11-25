@@ -84,6 +84,57 @@ body {
   white-space: nowrap;
 }
 
+/* ---- a newer version is out ---- */
+
+.update {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 20px;
+  padding: 12px 20px;
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.update p {
+  margin: 0;
+  max-width: 70ch;
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.update button {
+  padding: 8px 18px;
+  font-size: 0.95rem;
+  width: auto;
+}
+
+.update button.primary {
+  background: var(--on-ink);
+  color: var(--ink);
+}
+
+.update button.primary::after {
+  content: none;
+}
+
+.update button.quiet {
+  color: var(--on-ink);
+  border-color: color-mix(in srgb, var(--on-ink) 45%, transparent);
+}
+
+.update button.quiet:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--on-ink);
+}
+
 /* ---- page frame ---- */
 
 .masthead,

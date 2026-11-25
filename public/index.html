@@ -11,6 +11,8 @@
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
+    <!-- Replaced at deploy with a fingerprint of the site's files (scripts/stamp-version.sh). -->
+    <meta name="fitbash-version" content="dev" />
     <title>fitbash · see your clothes as one outfit</title>
     <meta name="description" content="Add pictures of clothes and see them together as one outfit." />
     <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)" />
@@ -20,6 +22,17 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <div id="update-notice" class="update" role="status" hidden>
+      <p>
+        <strong>A newer version of fitbash is out.</strong>
+        Reload to use it. The pieces on this page are not kept across a reload; your past outfits are.
+      </p>
+      <span class="update-actions">
+        <button id="update-reload" type="button" class="primary">Reload</button>
+        <button id="update-later" type="button" class="quiet">Later</button>
+      </span>
+    </div>
+
     <header class="masthead">
       <h1>fitbash</h1>
       <p>Add pictures of clothes. <em>See them together as one outfit.</em></p>

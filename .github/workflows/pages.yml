@@ -26,6 +26,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Stamp the version
+        # A fingerprint of the site's files, so a visitor with the page open is told when a newer one is out.
+        run: sh scripts/stamp-version.sh public
       - name: Setup Pages
         uses: actions/configure-pages@v6
       - name: Upload the page

@@ -39,6 +39,9 @@ Most rules give their reason in brackets, so a rule can be dropped once its reas
 - The generate-check-redo loop in `public/lib/pipeline.js` always has a hard attempt cap, and a failed check never costs the person a picture that already exists. [Each attempt is the visitor's money.]
 - Image API shapes change often. Before editing `public/lib/providers/gemini.js`, `openai.js` or `local.js`, read the provider's current documentation instead of relying on memory, and confirm with a CORS preflight that browsers may send any header you add. [Both had changed since the code was first drafted, and one documented header is refused from browsers.]
 - A browser test's stand-in must fail the way the real thing fails. [The test harness lets a page read a cross-site refusal that a real browser hides, so a stand-in that simply answered 403 exercised a path no visitor would take.]
+- The site's version is stamped at deploy by `scripts/stamp-version.sh` (a fingerprint of `public/`), never by hand, and a stamped file is never committed: `public/sw.js` and `public/index.html` say `dev` in the repository. [The fingerprint changes exactly when a file a visitor loads changes, so there is no number to forget; a test holds the repository's copy to `dev`.]
+- The page never reloads itself. A newer version is announced and the visitor chooses when. [The pieces a visitor has added live only in the open page.]
+- `public/sw.js` serves the site's own files network-first and touches nothing else, and only a stamped copy registers it. Change it with care and read the live site after the deploy: a broken service worker stays in visitors' browsers until a fixed one replaces it.
 - GitHub Actions versions are looked up, not remembered (`git ls-remote --tags https://github.com/actions/<name>`). [The first deploy failed on an upload step two major versions behind its deploy step.]
 
 ## Which model does what
