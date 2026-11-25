@@ -12,6 +12,7 @@ import {
   LOCAL_DEFAULT_URL,
   LOCAL_TIERS,
   findLocalModels,
+  localMaxPieces,
   readLocalDownloads,
   pickLocalModel,
   startLocalDownload,
@@ -240,8 +241,10 @@ function setLocalStatus(text, kind = "") {
   ui.localStatus.classList.toggle("good", kind === "good");
 }
 
-const describeModel = (model) =>
-  `${model.id}${model.sizeGb ? ` · ${model.sizeGb} GB` : ""}${model.downloaded ? "" : " · not downloaded yet"}`;
+const describeModel = (model) => {
+  const most = localMaxPieces(model.id);
+  return `${model.id}${model.sizeGb ? ` · ${model.sizeGb} GB` : ""}${most && most < MAX_ITEMS ? ` · up to ${most} pieces` : ""}${model.downloaded ? "" : " · not downloaded yet"}`;
+};
 
 /** Fill the "this computer" steps from state. */
 function renderLocal() {

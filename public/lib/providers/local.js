@@ -42,6 +42,14 @@ export const LOCAL_TIERS = {
   },
 };
 
+/**
+ * How many pieces a local model can combine, or null when that isn't known.
+ *
+ * FLUX.2 klein takes up to four reference pictures (its maker's documentation, 2026-11).
+ * Seen with the real app: given five, it left two out and made no complaint.
+ */
+export const localMaxPieces = (modelId) => (/klein/i.test(modelId ?? "") ? 4 : null);
+
 const clean = (baseUrl) => (baseUrl || LOCAL_DEFAULT_URL).replace(/\/+$/, "");
 
 // What an answer says went wrong, wherever it says it: { error: "words" },
@@ -70,6 +78,12 @@ export function createLocalProvider({ baseUrl, model, fetchImpl = fetch }) {
     name: "local",
     model,
     async generate({ prompt, images, aspectRatio }) {
+      const most = localMaxPieces(model);
+      if (most && images.length > most) {
+        throw new ProviderError(
+          `The model on your computer combines at most ${most} pieces, and leaves some out when given more. Remove ${images.length - most === 1 ? "one" : "some"} and try again, or choose a paid service in Setup for bigger outfits.`,
+        );
+      }
       const form = new FormData();
       form.set("model", model);
       form.set("prompt", prompt);

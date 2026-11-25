@@ -1031,6 +1031,27 @@ test("a download in the app is picked up again after the page was closed, and a 
   assert.deepEqual(seen.errors, []);
 });
 
+test("a local model that combines four pieces says so, and is not sent a fifth", options, async (t) => {
+  const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
+  const { page, seen } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "medium");
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  assert.match(await page.$eval("#local-model option:checked", (option) => option.textContent), /^Flux-2-Klein-4B · 16\.1 GB · up to 4 pieces$/);
+
+  await addFiles(page, [TEE, JEANS, TEE, JEANS, TEE]);
+  await page.click("#generate");
+  await untilText(page, "#progress", "combines at most 4 pieces");
+  assert.match(await text(page, "#progress"), /Remove one and try again, or choose a paid service in Setup/);
+  assert.deepEqual(seen.local, [], "no picture was asked for");
+
+  await page.click(".item:last-child .remove");
+  await page.click("#generate");
+  await untilText(page, "#progress", "Done.");
+  assert.deepEqual(seen.local, [{ model: "Flux-2-Klein-4B", size: "896x1152", pictures: 4 }]);
+});
+
 test("when the local app can't make the picture, the page gives its reason and something to try", options, async (t) => {
   // What a visitor with a 12 GB card got from the real app for three pieces was only "sd-server request failed".
   const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })), engineError: "failed to allocate buffer of 9216 MiB" } };

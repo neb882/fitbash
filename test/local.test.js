@@ -70,6 +70,30 @@ test("the default address is used when none is set, and a JPEG answer is recogni
   assert.equal(out.mimeType, "image/jpeg");
 });
 
+test("a model that combines only four pieces is not sent a fifth", async () => {
+  // Seen with the real app: FLUX.2 klein, given five pieces, made a picture with two of them missing.
+  const five = [...images, ...images, images[0]];
+  for (const model of ["Flux-2-Klein-4B", "Flux-2-Klein-9B-GGUF"]) {
+    const { fetchImpl, calls } = recorder(() => json(200, { data: [{ b64_json: PNG }] }));
+    const provider = createLocalProvider({ model, fetchImpl });
+    await assert.rejects(
+      provider.generate({ prompt: "p", images: five, aspectRatio: "3:4" }),
+      (error) => error instanceof ProviderError && /at most 4 pieces.*Remove one and try again, or choose a paid service/.test(error.message),
+    );
+    assert.equal(calls.length, 0, "nothing is sent, so no time is spent on a picture that would be wrong");
+    await provider.generate({ prompt: "p", images: five.slice(0, 4), aspectRatio: "3:4" });
+    assert.equal(calls.length, 1);
+  }
+  await assert.rejects(
+    createLocalProvider({ model: "Flux-2-Klein-4B", fetchImpl: recorder(() => json(200, {})).fetchImpl }).generate({ prompt: "p", images: [...five, ...five], aspectRatio: "3:4" }),
+    /Remove some and try again/,
+  );
+  // A model this page knows nothing about is sent whatever the person added.
+  const other = recorder(() => json(200, { data: [{ b64_json: PNG }] }));
+  await createLocalProvider({ model: "sd-cpp-local", fetchImpl: other.fetchImpl }).generate({ prompt: "p", images: five, aspectRatio: "3:4" });
+  assert.equal(other.calls[0].init.body.getAll("image[]").length, 5);
+});
+
 test("the local app's failures are explained with what to do", async () => {
   const run = (respond) =>
     createLocalProvider({ model: "m", fetchImpl: recorder(respond).fetchImpl }).generate({ prompt: "p", images, aspectRatio: "1:1" });
