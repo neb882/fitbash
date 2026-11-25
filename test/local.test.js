@@ -7,6 +7,7 @@ import {
   createLocalProvider,
   findLocalModels,
   pickLocalModel,
+  readLocalDownloads,
   startLocalDownload,
 } from "../public/lib/providers/local.js";
 import { createProvider, PROVIDERS, ProviderError } from "../public/lib/providers/index.js";
@@ -79,7 +80,21 @@ test("the local app's failures are explained with what to do", async () => {
   await fails(() => { throw new DOMException("timed out", "TimeoutError"); }, /took too long/);
   await fails(() => json(403, {}), /doesn't accept this website yet/);
   await fails(() => json(503, { error: "No current model is configured", code: "model_not_loaded" }), /model ready.*It said: No current model/);
-  await fails(() => json(500, { error: { message: "out of memory" } }), /too large for it.*It said: out of memory/);
+  await fails(() => json(500, { error: { message: "something broke" } }), /fewer pieces.*too large for this computer.*It said: something broke/);
+  await fails(() => json(500, { error: { message: "CUDA error: out of memory" } }), /ran out of memory.*fewer pieces.*It said: CUDA error/);
+
+  // Seen with the real app (an RTX 5070, three pieces): its own message is only "sd-server request failed".
+  // The picture engine's reason travels in the details, as Lemonade's source builds them.
+  const wrapped = (response) =>
+    json(500, {
+      error: { message: "sd-server request failed", type: "backend_error", details: { status_code: 500, response } },
+    });
+  await fails(() => wrapped({ error: "failed to allocate 9216 MiB" }), /ran out of memory.*It said: failed to allocate 9216 MiB\)$/);
+  await fails(() => wrapped({ error: "server_error", message: "bad tensor shape" }), /It said: bad tensor shape\)$/);
+  await fails(() => wrapped("plain words from the engine"), /It said: plain words from the engine\)$/);
+  // With nothing more in the details, Lemonade's own message is still better than none.
+  await fails(() => wrapped({}), /It said: sd-server request failed\)$/);
+  await fails(() => wrapped(""), /It said: sd-server request failed\)$/);
   await fails(() => json(200, { data: [] }), /answered without a picture/);
 });
 
@@ -119,30 +134,98 @@ test("an app that is running but refuses this website is told apart from one tha
   assert.deepEqual(await findLocalModels(undefined, recorder(() => new Response("<html>", { status: 200 }))), { status: "unreachable" });
 });
 
-test("a download is requested by model name, and a quick refusal is reported", async () => {
-  const accepted = recorder(() => new Promise(() => {})); // the app holds the request open while it downloads
-  const download = await startLocalDownload("http://localhost:13305/v1", "Flux-2-Klein-4B", accepted);
-  assert.equal(download.started, true);
+// A download job as Lemonade documents it (2026-11): what /v1/pull answers at once and /v1/downloads lists.
+const job = (fields = {}) => ({
+  id: "model:Flux-2-Klein-4B",
+  type: "model",
+  model_name: "Flux-2-Klein-4B",
+  status: "downloading",
+  running: true,
+  file: "flux-2-klein-4b.safetensors",
+  file_index: 2,
+  total_files: 3,
+  bytes_downloaded: 1_200_000_000,
+  bytes_total: 7_750_000_000,
+  percent: 15,
+  total_download_size: 16_100_000_000,
+  bytes_previously_downloaded: 0,
+  completed_files_bytes: 2_000_000_000,
+  cumulative_bytes_downloaded: 3_200_000_000,
+  overall_bytes_downloaded: 3_200_000_000,
+  complete: false,
+  ...fields,
+});
+
+test("a download is handed to the app to look after, and a refusal comes back with the app's words", async () => {
+  const accepted = recorder(() => json(200, job({ cumulative_bytes_downloaded: 0, total_download_size: 0 })));
+  assert.deepEqual(await startLocalDownload("http://localhost:13305/v1", "Flux-2-Klein-4B", accepted), { started: true });
   const { url, init } = accepted.calls[0];
   assert.equal(url, "http://localhost:13305/v1/pull");
   assert.equal(init.method, "POST");
-  assert.deepEqual(JSON.parse(init.body), { model_name: "Flux-2-Klein-4B", stream: false });
+  // Without `subscribe: false` the app ties the download to the request and ends it when the page goes.
+  assert.deepEqual(JSON.parse(init.body), { model_name: "Flux-2-Klein-4B", stream: true, subscribe: false });
 
-  const quick = await startLocalDownload(undefined, "m", recorder(() => json(200, { status: "success" })));
-  assert.equal(quick.started, true);
-  assert.equal(await quick.finished, true);
-  assert.equal((await startLocalDownload(undefined, "m", recorder(() => json(404, { error: "unknown model" })))).started, false);
-  assert.equal((await startLocalDownload(undefined, "m", recorder(() => { throw new TypeError("Failed to fetch"); }))).started, false);
+  const start = (respond) => startLocalDownload(undefined, "m", recorder(respond));
+  assert.deepEqual(await start(() => json(400, { error: { message: "Server is offline", code: "lemond_offline" } })), {
+    started: false,
+    reason: "Server is offline",
+  });
+  assert.deepEqual(await start(() => json(200, job({ status: "error", error: "Model not found", code: "unknown_model" }))), {
+    started: false,
+    reason: "Model not found",
+  });
+  assert.deepEqual(await start(() => { throw new TypeError("Failed to fetch"); }), { started: false, reason: "" });
+  // A stream of events is a download tied to this request: it stays open for as long as the
+  // download takes, and ends the download when the page stops reading. The page lets go of it at once.
+  let letGo = false;
+  const events = new ReadableStream({
+    start: (controller) => controller.enqueue(new TextEncoder().encode("event: progress\ndata: {}\n\n")),
+    cancel: () => { letGo = true; },
+  });
+  const stream = () => new Response(events, { headers: { "content-type": "text/event-stream" } });
+  assert.deepEqual(await start(stream), { started: false, reason: "" });
+  assert.equal(letGo, true);
 });
 
-test("a download that fails after it began is reported, so the page can stop waiting", async () => {
-  const later = (answer) => recorder(() => new Promise((resolve, reject) => setTimeout(() => answer(resolve, reject), 3300)));
-  const failed = await startLocalDownload(undefined, "m", later((resolve) => resolve(json(500, { error: "disk full" }))));
-  assert.equal(failed.started, true);
-  assert.equal(await failed.finished, false);
-  const dropped = await startLocalDownload(undefined, "m", later((resolve, reject) => reject(new TypeError("Failed to fetch"))));
-  assert.equal(dropped.started, true);
-  assert.equal(await dropped.finished, false);
+test("the app's downloads are read as how far each has got", async () => {
+  const listed = recorder(() =>
+    json(200, [
+      // The app lists downloads of its own parts too; those are not models.
+      job({ id: "backend:sd-cpp:vulkan", type: "backend", model_name: "sd-cpp:vulkan" }),
+      job(),
+      job({ model_name: "Paused", status: "paused" }),
+      job({ model_name: "Stopped", status: "cancelled" }),
+      job({ model_name: "Done", status: "completed", complete: true }),
+      job({ model_name: "Broken", status: "error", error: "disk full" }),
+      job({ model_name: "Starting", total_download_size: 0, cumulative_bytes_downloaded: 0, overall_bytes_downloaded: 0 }),
+      // An older app names the count differently.
+      job({ model_name: "Older", cumulative_bytes_downloaded: undefined, overall_bytes_downloaded: 500 }),
+      // A state added since this was written: still going while the app is working on it, over when it isn't.
+      job({ model_name: "Checking", status: "verifying", running: true }),
+      job({ model_name: "Checked", status: "verifying", running: false }),
+    ]),
+  );
+  const jobs = await readLocalDownloads("http://localhost:13305/v1/", listed);
+  assert.equal(listed.calls[0].url, "http://localhost:13305/v1/downloads");
+  assert.deepEqual(jobs, [
+    { modelId: "Flux-2-Klein-4B", state: "downloading", doneBytes: 3_200_000_000, totalBytes: 16_100_000_000, error: "" },
+    { modelId: "Paused", state: "paused", doneBytes: 3_200_000_000, totalBytes: 16_100_000_000, error: "" },
+    { modelId: "Stopped", state: "cancelled", doneBytes: 3_200_000_000, totalBytes: 16_100_000_000, error: "" },
+    { modelId: "Done", state: "done", doneBytes: 3_200_000_000, totalBytes: 16_100_000_000, error: "" },
+    { modelId: "Broken", state: "failed", doneBytes: 3_200_000_000, totalBytes: 16_100_000_000, error: "disk full" },
+    { modelId: "Starting", state: "downloading", doneBytes: 0, totalBytes: 0, error: "" },
+    { modelId: "Older", state: "downloading", doneBytes: 500, totalBytes: 16_100_000_000, error: "" },
+    { modelId: "Checking", state: "downloading", doneBytes: 3_200_000_000, totalBytes: 16_100_000_000, error: "" },
+    { modelId: "Checked", state: "done", doneBytes: 3_200_000_000, totalBytes: 16_100_000_000, error: "" },
+  ]);
+});
+
+test("an app that has gone is told apart from one whose downloads can't be read", async () => {
+  assert.equal(await readLocalDownloads(undefined, recorder(() => { throw new TypeError("Failed to fetch"); })), null);
+  assert.deepEqual(await readLocalDownloads(undefined, recorder(() => json(404, { error: {} }))), []);
+  assert.deepEqual(await readLocalDownloads(undefined, recorder(() => new Response("<html>", { status: 200 }))), []);
+  assert.deepEqual(await readLocalDownloads(undefined, recorder(() => json(200, { jobs: [] }))), []);
+  assert.deepEqual(await readLocalDownloads(undefined, recorder(() => json(200, [null, "x", {}]))), []);
 });
 
 test("the model offered first fits the computer, falling back to what the app has", () => {

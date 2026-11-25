@@ -48,7 +48,7 @@ If your computer has a good graphics card, it can make the pictures itself, at n
 
 1. Say what kind of computer it is. The page often recognises the graphics card and suggests an answer; it cannot read how much memory the card has, so check the suggestion.
 2. Install [Lemonade](https://lemonade-server.ai), a free app that runs AI models locally, and open it.
-3. Press **Connect**. The page finds the app, offers the model that suits your computer, and can start the download for you (the standard model is about 16 GB).
+3. Press **Connect**. The page finds the app, offers the model that suits your computer, and can start the download for you (the standard model is about 16 GB). While it downloads, the page shows how far it has got, the speed in megabits per second and roughly how long is left. The app does the downloading, so the page can be closed meanwhile: press Connect when you come back and it picks the download up where it is.
 
 Things worth knowing:
 
@@ -58,7 +58,7 @@ Things worth knowing:
 - **Local models are less exact** than the paid services, most of all on prints and lettering. The quality check below still works with a local model, and still costs its few cents.
 - Any app that offers the same interface works: put its address under **Advanced** in Setup (for example `http://127.0.0.1:1234/v1` for stable-diffusion.cpp's server, started with this site in its `--cors-origins`).
 
-This path was written from Lemonade's documentation and is tested against a stand-in for the app. It has not yet been run against the real app on real hardware, so expect to fix a detail or two on first use.
+This path was written from Lemonade's documentation and is tested against a stand-in for the app. Its first run against the real app (2026-11-25, Windows, an NVIDIA card with 12 GB) got this far: the page recognised the graphics card, found the app, listed the model and reported Setup as ready. A picture from three pieces then failed inside the app's picture engine, for a reason the app's own message ("sd-server request failed") did not give. The page now shows the engine's reason, which the app passes along beside its message, and suggests trying fewer pieces. No picture has been made on a visitor's own computer yet, and the download readout has only met the stand-in.
 
 ## Which models, and why
 

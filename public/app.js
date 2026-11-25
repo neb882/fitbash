@@ -12,10 +12,12 @@ import {
   LOCAL_DEFAULT_URL,
   LOCAL_TIERS,
   findLocalModels,
+  readLocalDownloads,
   pickLocalModel,
   startLocalDownload,
 } from "./lib/providers/local.js";
 import { TIERS, guessTier, readGraphicsName, tidyName } from "./lib/hardware.js";
+import { createSpeedometer, describeDownload } from "./lib/download-progress.js";
 import {
   MAX_OUTFITS,
   clearOutfits,
@@ -36,7 +38,7 @@ const CHECK_EDGE = 1024;
 const MAX_ITEMS = 8;
 const MAX_ATTEMPTS = 2; // One redo when the check finds a problem.
 const SETTINGS_KEY = "fitbash-settings";
-const DOWNLOAD_POLL_MS = 3000; // How often to ask the local app whether a download has finished.
+const DOWNLOAD_POLL_MS = 2000; // How often to ask the local app how a download is going.
 const LOST_AFTER_POLLS = 4; // This many unanswered in a row, and the app is taken to be gone.
 
 const $ = (id) => document.getElementById(id);
@@ -77,6 +79,9 @@ const ui = {
   localModels: $("local-models"),
   localModel: $("local-model"),
   localDownload: $("local-download"),
+  localProgress: $("local-progress"),
+  localProgressBar: $("local-progress-bar"),
+  localProgressText: $("local-progress-text"),
   localUrl: $("local-url"),
   providerConnect: $("provider-connect"),
   providerConnectButton: $("provider-connect-button"),
@@ -122,7 +127,7 @@ const state = {
     localTier: "",
   },
   // What the app on this computer last told us; not saved.
-  local: { status: "", models: [], downloading: "" },
+  local: { status: "", models: [], downloading: "", progress: null },
   graphics: { name: "", tier: null }, // the browser's best guess at the graphics card
   linkLookup: false, // true when the local helper server answers
   busy: false,
@@ -264,12 +269,22 @@ function renderLocal() {
       ...local.models.map((model) => el("option", { value: model.id, text: describeModel(model) })),
     );
     const wanted =
-      [settings.localModel, local.downloading, current].find((id) => id && local.models.some((m) => m.id === id)) ??
+      [local.downloading, settings.localModel, current].find((id) => id && local.models.some((m) => m.id === id)) ??
       pickLocalModel(local.models, tier);
     ui.localModel.value = wanted;
     const chosenModel = local.models.find((model) => model.id === wanted);
     ui.localDownload.hidden = chosenModel.downloaded || Boolean(local.downloading);
     ui.localModel.disabled = Boolean(local.downloading);
+  }
+
+  // How far, how fast, how long to go. Not in the status line: that one is read out to
+  // people using a screen reader each time it changes, and this changes every two seconds.
+  const progress = local.downloading ? local.progress : null;
+  ui.localProgress.hidden = !progress;
+  if (progress) {
+    if (progress.percent === null) ui.localProgressBar.removeAttribute("value");
+    else ui.localProgressBar.value = progress.percent;
+    ui.localProgressText.textContent = progress.text;
   }
 }
 
@@ -310,52 +325,108 @@ async function connectLocal() {
   if (found.status === "connected" && found.models.length > 0) {
     adoptLocalModel();
     renderSettings();
+    resumeLocalDownload();
   }
+}
+
+/** The app keeps downloading while the page is closed: pick a download up where it is. */
+async function resumeLocalDownload() {
+  if (state.local.downloading) return;
+  const waiting = (id) => state.local.models.some((m) => m.id === id && !m.downloaded);
+  const jobs = await readLocalDownloads(state.settings.localUrl);
+  const job = jobs?.find((j) => (j.state === "downloading" || j.state === "paused") && waiting(j.modelId));
+  if (!job || state.local.downloading) return;
+  state.local.downloading = job.modelId;
+  state.local.progress = null;
+  renderSettings();
+  watchLocalDownload(job.modelId);
 }
 
 async function downloadLocalModel() {
   const id = ui.localModel.value;
-  const model = state.local.models.find((m) => m.id === id);
-  const stop = (message) => {
-    state.local.downloading = "";
-    renderSettings();
-    setLocalStatus(message, "error");
-  };
-  const insideTheApp = `Download "${id}" inside ${LOCAL_APP.name} (Model Manager), then press Connect.`;
-
   state.local.downloading = id;
+  state.local.progress = null;
   renderSettings();
   setLocalStatus("Asking the app to download the model…");
   const download = await startLocalDownload(state.settings.localUrl, id);
-  if (!download.started) return stop(`The app wouldn't start the download. ${insideTheApp}`);
+  if (state.local.downloading !== id) return; // Setup was changed meanwhile.
+  if (!download.started) {
+    return stopLocalDownload(`The app wouldn't start the download${saidByApp(download.reason)}. ${insideTheApp(id)}`);
+  }
+  await watchLocalDownload(id);
+}
 
-  setLocalStatus(
-    `Downloading${model?.sizeGb ? ` ${model.sizeGb} GB` : ""}. Keep ${LOCAL_APP.name} and this page open; it can take a while.`,
-  );
-  let ended; // how the app's own request ended, once it has
-  download.finished.then((ok) => (ended = ok));
+const insideTheApp = (id) => `Download "${id}" inside ${LOCAL_APP.name} (Model Manager), then press Connect.`;
+const saidByApp = (words) => (words ? ` (it said: ${words.slice(0, 160)})` : "");
+
+function stopLocalDownload(message) {
+  state.local.downloading = "";
+  state.local.progress = null;
+  renderSettings();
+  setLocalStatus(message, "error");
+}
+
+/**
+ * Follow a download the app is looking after until the model is there.
+ * Every way out of the loop either finishes Setup or says what to do:
+ * it must never leave the page just waiting.
+ */
+async function watchLocalDownload(id) {
+  const url = state.settings.localUrl;
+  const size = state.local.models.find((m) => m.id === id)?.sizeGb;
+  const speed = createSpeedometer();
+  let said = ""; // the status line is changed only when the state does, so it isn't read out over and over
   let unanswered = 0;
+  let notThere = 0;
 
-  // The app lists the model as downloaded when it is done. Every way out of this loop
-  // either finishes Setup or says what to do: it must never leave the page just waiting.
-  for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_MS));
+  for (let first = true; ; first = false) {
+    if (!first) await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_MS));
     if (state.local.downloading !== id) return; // Setup was changed meanwhile.
-    const requestEnded = ended !== undefined;
-    const found = await findLocalModels(state.settings.localUrl);
+    const jobs = await readLocalDownloads(url);
+    if (state.local.downloading !== id) return;
+    const job = jobs?.find((j) => j.modelId === id);
+
+    if (job?.state === "failed") {
+      return stopLocalDownload(`The download didn't finish${saidByApp(job.error)}. ${insideTheApp(id)}`);
+    }
+    if (job?.state === "cancelled") {
+      return stopLocalDownload(`The download was stopped in ${LOCAL_APP.name}. Press "Download it" to start again.`);
+    }
+    if (job?.state === "downloading" || job?.state === "paused") {
+      unanswered = notThere = 0;
+      const paused = job.state === "paused";
+      const bytesPerSecond = paused ? null : speed.add(job.doneBytes, performance.now());
+      state.local.progress = describeDownload({ ...job, bytesPerSecond });
+      renderSettings();
+      if (said !== job.state) {
+        said = job.state;
+        setLocalStatus(
+          paused
+            ? `The download is paused. Resume it inside ${LOCAL_APP.name} to carry on.`
+            : `Downloading${size ? ` ${size} GB` : ""}. Keep ${LOCAL_APP.name} open; it can take a while.`,
+        );
+      }
+      continue;
+    }
+
+    // Finished, or no longer in the app's list: the model list says whether it is really there.
+    const found = jobs ? await findLocalModels(url) : { status: "unreachable" };
+    if (state.local.downloading !== id) return;
     if (found.status !== "connected") {
       if (++unanswered >= LOST_AFTER_POLLS) {
-        return stop(`Lost touch with ${LOCAL_APP.name} during the download. Open it again and press Connect.`);
+        return stopLocalDownload(`Lost touch with ${LOCAL_APP.name} during the download. Open it again and press Connect.`);
       }
       continue;
     }
     unanswered = 0;
     state.local.models = found.models;
     if (found.models.find((m) => m.id === id)?.downloaded) break;
-    // The app said the download was over, one way or the other, and the model still isn't there.
-    if (requestEnded) return stop(`The download didn't finish. ${insideTheApp}`);
+    // The app has a moment between finishing a download and listing the model; after that it isn't coming.
+    if (++notThere >= 3) return stopLocalDownload(`The download didn't finish. ${insideTheApp(id)}`);
   }
   state.local.downloading = "";
+  state.local.progress = null;
+  state.settings.localModel = id; // the model that was asked for is the one to use
   renderSettings();
   adoptLocalModel();
   renderSettings();
@@ -390,7 +461,7 @@ function wireLocal() {
     state.settings.localUrl = ui.localUrl.value.trim();
     // A different address is a different app: what the old one said no longer holds.
     state.settings.localModel = "";
-    state.local = { status: "", models: [], downloading: "" };
+    state.local = { status: "", models: [], downloading: "", progress: null };
     saveSettings();
     setLocalStatus("");
     renderSettings();

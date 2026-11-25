@@ -233,18 +233,42 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
     const path = new URL(request.url()).pathname;
     if (path === "/v1/models") return json(route, 200, { object: "list", data: local.catalog });
     if (path === "/v1/pull") {
-      const { model_name: name } = request.postDataJSON();
+      const body = request.postDataJSON();
+      const name = body.model_name;
       seen.local.push({ pull: name });
-      // An app that accepts the download and then fails it some seconds in.
-      if (local.pullFails) return setTimeout(() => json(route, 500, { error: "disk full" }), 4000);
-      if (local.neverFinishes) return; // held open, as the app does while it downloads
-      local.catalog = local.catalog.map((model) => (model.id === name ? { ...model, downloaded: true } : model));
-      return json(route, 200, { status: "success" });
+      // Only a download the app is asked to look after itself is answered at once. Any other
+      // kind is tied to its request, which stays open for as long as the download takes.
+      if (body.stream !== true || body.subscribe !== false) return;
+      if (local.refusePull) return json(route, 400, { error: { message: "Server is offline", code: "lemond_offline" } });
+      const gigabytes = local.catalog.find((model) => model.id === name)?.size ?? 0;
+      local.job = { model: name, status: "downloading", done: 0, total: 0, size: gigabytes * 1e9, reads: 0 };
+      return json(route, 200, jobSnapshot(local.job));
+    }
+    if (path === "/v1/downloads") {
+      const job = local.job;
+      if (!job) return json(route, 200, []);
+      // The app learns the size once the download is under way, then counts up.
+      if (job.status === "downloading") {
+        job.reads += 1;
+        job.total = job.size;
+        job.done = Math.min(job.total, (local.startsAt ?? 0) + (job.reads - 1) * (local.bytesPerRead ?? 0));
+        // An app that accepts the download and then fails it some seconds in.
+        if (local.pullFails && job.reads > 1) Object.assign(job, { status: "error", error: "disk full" });
+      }
+      // The app lists downloads of its own parts beside the models.
+      const part = { ...jobSnapshot(job), id: "backend:sd-cpp:vulkan", type: "backend", model_name: "sd-cpp:vulkan", status: "completed" };
+      return json(route, 200, [part, jobSnapshot(job)]);
     }
     if (path === "/v1/images/edits") {
       const raw = request.postDataBuffer().toString("latin1");
       const field = (name) => new RegExp(`name="${name}"\r\n\r\n([^\r]+)`).exec(raw)?.[1];
       seen.local.push({ model: field("model"), size: field("size"), pictures: raw.match(/name="image\[\]"/g)?.length ?? 0 });
+      // The picture engine inside the app fails: the app passes the engine's reason along in the details.
+      if (local.engineError) {
+        return json(route, 500, {
+          error: { message: "sd-server request failed", type: "backend_error", details: { status_code: 500, response: { error: local.engineError } } },
+        });
+      }
       return json(route, 200, { created: 1, data: [{ b64_json: OUTFIT_RIGHT }], output_format: "png" });
     }
     route.fulfill({ status: 404, headers: CORS, body: "" });
@@ -256,6 +280,34 @@ async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, se
   await page.goto(url);
   await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
   return { page, seen };
+}
+
+// A download job as Lemonade documents it (2026-11): /v1/pull answers one at once, /v1/downloads lists them.
+const jobSnapshot = (job) => ({
+  id: `model:${job.model}`,
+  type: "model",
+  model_name: job.model,
+  status: job.status,
+  running: job.status === "downloading",
+  file: "model.safetensors",
+  file_index: 1,
+  total_files: 1,
+  bytes_downloaded: job.done,
+  bytes_total: job.total,
+  percent: job.total ? Math.floor((job.done / job.total) * 100) : 0,
+  total_download_size: job.total,
+  bytes_previously_downloaded: 0,
+  completed_files_bytes: 0,
+  cumulative_bytes_downloaded: job.done,
+  overall_bytes_downloaded: job.done,
+  complete: job.status === "completed",
+  ...(job.error ? { error: job.error } : {}),
+});
+
+/** The stand-in app finishes its download: the job says so and the model is listed as there. */
+function finishDownload(local) {
+  Object.assign(local.job, { status: "completed", done: local.job.total });
+  local.catalog = local.catalog.map((model) => (model.id === local.job.model ? { ...model, downloaded: true } : model));
 }
 
 const PASS = {
@@ -559,10 +611,31 @@ test("a free model on the visitor's own computer: connect, download the suggeste
   assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-4B");
   assert.match(await text(page, "#settings-summary"), /Do this once/);
 
+  // The app downloads at 100 megabits a second: 25 MB between two looks, two seconds apart.
+  Object.assign(services.local, { startsAt: 3_200_000_000, bytesPerRead: 25_000_000 });
+  assert.equal(await page.isHidden("#local-progress"), true);
   await page.click("#local-download");
+  await untilText(page, "#local-status", "Downloading 16.1 GB. Keep Lemonade open");
+  assert.equal(await page.isHidden("#local-download"), true);
+  // How far, how fast and how long to go, from what the app reports.
+  await page.waitForFunction(() => document.querySelector("#local-progress-text").textContent.includes("Mbps"));
+  const readout = /^3\.2 of 16\.1 GB \((?:19|20)%\) · (\d+) Mbps · about (\d+) minutes left$/.exec(await text(page, "#local-progress-text"));
+  assert.ok(readout, await text(page, "#local-progress-text"));
+  assert.ok(readout[1] > 70 && readout[1] < 130, `about 100 Mbps, got ${readout[1]}`);
+  assert.ok(readout[2] > 12 && readout[2] < 24, `about 17 minutes, got ${readout[2]}`);
+  assert.match(String(await page.$eval("#local-progress-bar", (bar) => bar.value)), /^(19|20)$/);
+  assert.equal(await page.isHidden("#local-progress"), false);
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    0,
+    "with the download readout showing",
+  );
+
+  finishDownload(services.local);
   await untilText(page, "#local-status", "Connected and ready.");
   assert.deepEqual(seen.local, [{ pull: "Flux-2-Klein-4B" }]);
   assert.equal(await page.isHidden("#local-download"), true);
+  assert.equal(await page.isHidden("#local-progress"), true);
   assert.equal(await text(page, "#settings-summary"), "This computer connected");
 
   await addFiles(page, [TEE, JEANS]);
@@ -872,21 +945,110 @@ test("a local download that fails, or an app that goes away, does not leave Setu
 
   await page.click("#local-download");
   await untilText(page, "#local-status", "Downloading");
-  await untilText(page, "#local-status", "didn't finish");
+  await untilText(page, "#local-status", "The download didn't finish (it said: disk full). Download");
   assert.equal(await page.locator("#local-status.error").count(), 1);
   assert.equal(await page.isVisible("#local-download"), true);
   assert.equal(await page.isEnabled("#local-model"), true);
+  assert.equal(await page.isHidden("#local-progress"), true);
 
-  // A second try: the download starts, then the app is closed.
+  // A second try: the download is stopped inside the app.
   services.local.pullFails = false;
-  services.local.catalog = localCatalog(); // still not downloaded
-  const holdOpen = services.local;
-  holdOpen.neverFinishes = true;
+  await page.click("#local-download");
+  await untilText(page, "#local-status", "Downloading");
+  services.local.job.status = "cancelled";
+  await untilText(page, "#local-status", "was stopped in Lemonade");
+  assert.equal(await page.isVisible("#local-download"), true);
+
+  // A third: the app is restarted and no longer knows of the download.
+  await page.click("#local-download");
+  await untilText(page, "#local-status", "Downloading");
+  services.local.job = null;
+  await page.waitForFunction(() => document.querySelector("#local-status").textContent.includes("didn't finish"), null, { timeout: 30_000 });
+  assert.equal(await page.isVisible("#local-download"), true);
+
+  // A fourth: the download starts, then the app is closed.
+  const app = services.local;
   await page.click("#local-download");
   await untilText(page, "#local-status", "Downloading");
   services.local = null;
   await page.waitForFunction(() => document.querySelector("#local-status").textContent.includes("Lost touch"), null, { timeout: 30_000 });
   assert.equal(await page.isEnabled("#local-model"), true);
+  assert.equal(await page.isHidden("#local-progress"), true);
+
+  // An app that won't take the download on says why.
+  services.local = app;
+  app.job = null; // opened again, it knows of no download
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "has to be downloaded first");
+  app.refusePull = true;
+  await page.click("#local-download");
+  await untilText(page, "#local-status", "wouldn't start the download (it said: Server is offline)");
+});
+
+test("a download in the app is picked up again after the page was closed, and a paused one says so", options, async (t) => {
+  // The standard model is already on this computer; the visitor asks for the larger one as well.
+  const catalog = localCatalog().map((model) => ({ ...model, downloaded: model.id === "Flux-2-Klein-4B" }));
+  const services = { local: { catalog, startsAt: 1_000_000_000, bytesPerRead: 25_000_000 } };
+  const { page, seen } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "medium");
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  await page.selectOption("#local-model", "Flux-2-Klein-9B-GGUF");
+  await untilText(page, "#local-status", "has to be downloaded first (19 GB)");
+  await page.click("#local-download");
+  await page.waitForFunction(() => document.querySelector("#local-progress-text").textContent.includes("Mbps"));
+
+  // The page is closed and opened again; the app carried on meanwhile.
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  assert.equal(await page.isHidden("#local-progress"), true);
+  services.local.startsAt = 9_500_000_000;
+  services.local.bytesPerRead = 0;
+  services.local.job.reads = 0;
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Downloading 19 GB");
+  await untilText(page, "#local-progress-text", "9.5 of 19.0 GB (50%)");
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-9B-GGUF");
+  assert.equal(await page.isHidden("#local-download"), true);
+  assert.equal(await page.isDisabled("#local-model"), true);
+  assert.deepEqual(seen.local, [{ pull: "Flux-2-Klein-9B-GGUF" }], "picked up, not asked for a second time");
+
+  // Paused inside the app: the page says where to resume it, and shows no speed.
+  services.local.job.status = "paused";
+  await untilText(page, "#local-status", "The download is paused. Resume it inside Lemonade");
+  assert.equal(await text(page, "#local-progress-text"), "9.5 of 19.0 GB (50%)");
+  assert.equal(await page.$eval("#local-progress-bar", (bar) => bar.value), 50);
+
+  services.local.job.status = "downloading";
+  await untilText(page, "#local-status", "Downloading 19 GB");
+  finishDownload(services.local);
+  await untilText(page, "#local-status", "Connected and ready.");
+  // The model that was asked for is the one now in use, not the one that was there before.
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-9B-GGUF");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("fitbash-settings"))).localModel, "Flux-2-Klein-9B-GGUF");
+  assert.equal(await text(page, "#settings-summary"), "This computer connected");
+  assert.deepEqual(seen.errors, []);
+});
+
+test("when the local app can't make the picture, the page gives its reason and something to try", options, async (t) => {
+  // What a visitor with a 12 GB card got from the real app for three pieces was only "sd-server request failed".
+  const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })), engineError: "failed to allocate buffer of 9216 MiB" } };
+  const { page } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  await addFiles(page, [TEE, JEANS]);
+  await page.click("#generate");
+  await untilText(page, "#progress", "ran out of memory");
+  assert.match(await text(page, "#progress"), /try again with fewer pieces.*\(It said: failed to allocate buffer of 9216 MiB\)$/);
+  assert.equal(await page.locator("#progress.error").count(), 1);
+
+  services.local.engineError = "unsupported sampler";
+  await page.click("#generate");
+  await untilText(page, "#progress", "(It said: unsupported sampler)");
+  assert.match(await text(page, "#progress"), /^The app on your computer couldn't make that picture\. Try again with fewer pieces/);
+  assert.equal(await page.isEnabled("#generate"), true);
 });
 
 test("changing the local app's address makes Setup unfinished again", options, async (t) => {

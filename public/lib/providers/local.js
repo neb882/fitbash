@@ -1,6 +1,6 @@
 // An image model running on the person's own computer, reached through a local
 // app that speaks the OpenAI-style image API. Written against Lemonade Server
-// (its docs as of 2026-11: port 13305, /v1/images/edits, /v1/models, /v1/pull);
+// (its docs as of 2026-11: port 13305, /v1/images/edits, /v1/models, /v1/pull, /v1/downloads);
 // stable-diffusion.cpp's sd-server answers the same edit request on its own port.
 
 import { ProviderError } from "./errors.js";
@@ -44,11 +44,21 @@ export const LOCAL_TIERS = {
 
 const clean = (baseUrl) => (baseUrl || LOCAL_DEFAULT_URL).replace(/\/+$/, "");
 
+// What an answer says went wrong, wherever it says it: { error: "words" },
+// { error: { message } } and { error: "server_error", message } are all in use.
+function wordsOf(value) {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object") return "";
+  return wordsOf(value.message) || wordsOf(value.error);
+}
+
 async function errorMessage(res) {
   try {
-    const body = await res.json();
-    const error = body?.error;
-    return (typeof error === "string" ? error : error?.message) ?? "";
+    const error = (await res.json())?.error;
+    // When the picture engine inside Lemonade fails, Lemonade's own message is only
+    // "sd-server request failed"; the engine's reason is passed along in the details
+    // (Lemonade's source, 2026-11: error.details = { status_code, response }).
+    return wordsOf(error?.details?.response) || wordsOf(error);
   } catch {
     return "";
   }
@@ -92,7 +102,9 @@ export function createLocalProvider({ baseUrl, model, fetchImpl = fetch }) {
             ? "The app on your computer doesn't accept this website yet. Press Connect in Setup to see how to allow it."
             : res.status === 404 || res.status === 503
               ? "The app on your computer doesn't have that model ready. Press Connect in Setup and check the model."
-              : "The app on your computer couldn't make that picture. If this keeps happening, the model may be too large for it.";
+              : /memory|alloc/i.test(detail)
+                ? "Your computer ran out of memory for this picture. Close other programs that use the graphics card and try again with fewer pieces. If it still fails, pick a smaller model in Setup."
+                : "The app on your computer couldn't make that picture. Try again with fewer pieces; if that fails too, the model may be too large for this computer.";
         throw new ProviderError(detail ? `${summary} (It said: ${detail.slice(0, 240)})` : summary, {
           status: res.status,
           detail,
@@ -156,29 +168,76 @@ export async function findLocalModels(baseUrl, { fetchImpl = fetch } = {}) {
 }
 
 /**
- * Ask the app to download a model. Resolves to { started, finished }:
+ * Ask the app to download a model. The app keeps the download as a job of its own
+ * and answers at once (Lemonade: `stream` with `subscribe` off), so the page can
+ * watch it with readLocalDownloads() and find it again after being closed.
  *
- *   started   false when the app refused the request straight away
- *   finished  a promise for how the request ended: true when the app reported
- *             success, false when it failed or the connection dropped. The app
- *             may hold the request open for the whole download, so this can
- *             take a long time; watch findLocalModels() for `downloaded` too.
+ * Resolves to { started: true }, or { started: false, reason } with the app's own
+ * words when it gave any.
  */
 export async function startLocalDownload(baseUrl, modelId, { fetchImpl = fetch } = {}) {
-  const finished = fetchImpl(`${clean(baseUrl)}/pull`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model_name: modelId, stream: false }),
-  }).then(
-    (res) => res.ok,
-    () => false,
-  );
-  // Give the app a moment to refuse; silence after that means it has started.
-  const refusedQuickly = await Promise.race([
-    finished.then((ok) => !ok),
-    new Promise((resolve) => setTimeout(() => resolve(false), 3_000)),
-  ]);
-  return { started: !refusedQuickly, finished };
+  let res;
+  try {
+    res = await fetchImpl(`${clean(baseUrl)}/pull`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model_name: modelId, stream: true, subscribe: false }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    return { started: false, reason: "" };
+  }
+  if (!res.ok) return { started: false, reason: await errorMessage(res) };
+  // Anything but a job means the app didn't take the download on as its own:
+  // a stream of events here would end the download the moment the page stopped reading it.
+  if (!/json/i.test(res.headers.get("content-type") ?? "")) {
+    res.body?.cancel().catch(() => {});
+    return { started: false, reason: "" };
+  }
+  const job = readJob(await res.json().catch(() => null));
+  if (!job) return { started: false, reason: "" };
+  if (job.state === "failed") return { started: false, reason: job.error };
+  return { started: true };
+}
+
+const JOB_STATES = { downloading: "downloading", paused: "paused", cancelled: "cancelled", completed: "done", error: "failed" };
+const count = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
+
+function readJob(entry) {
+  if (!entry || typeof entry !== "object" || typeof entry.model_name !== "string") return null;
+  if (entry.type && entry.type !== "model") return null; // the app also downloads its own parts
+  const error = typeof entry.error === "string" ? entry.error : "";
+  return {
+    modelId: entry.model_name,
+    // A state this page doesn't know counts as still going only while the app says it is
+    // working on it. Otherwise it is over, and the model list says how it ended.
+    state: error ? "failed" : (JOB_STATES[entry.status] ?? (entry.running === true ? "downloading" : "done")),
+    doneBytes: count(entry.cumulative_bytes_downloaded) || count(entry.overall_bytes_downloaded),
+    totalBytes: count(entry.total_download_size),
+    error,
+  };
+}
+
+/**
+ * The downloads the app is looking after, as
+ *   [{ modelId, state, doneBytes, totalBytes, error }]
+ * with state one of "downloading", "paused", "cancelled", "done", "failed".
+ * totalBytes is 0 until the app knows it. The app drops a finished download from
+ * its list after half a minute, so a missing one may simply be done.
+ *
+ * Resolves to null when nothing answered, and to an empty list when the answer
+ * couldn't be read.
+ */
+export async function readLocalDownloads(baseUrl, { fetchImpl = fetch } = {}) {
+  let res;
+  try {
+    res = await fetchImpl(`${clean(baseUrl)}/downloads`, { signal: AbortSignal.timeout(8_000) });
+  } catch {
+    return null;
+  }
+  if (!res.ok) return [];
+  const body = await res.json().catch(() => null);
+  return Array.isArray(body) ? body.map(readJob).filter(Boolean) : [];
 }
 
 /** The model to offer first for a kind of computer, out of those the app has. */
