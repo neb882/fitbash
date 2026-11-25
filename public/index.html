@@ -11,39 +11,106 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>fitbash</title>
-    <meta name="description" content="Paste clothing pictures or links and see them together as one outfit." />
+    <meta name="description" content="Add pictures of clothes and see them together as one outfit." />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="masthead">
       <h1>fitbash</h1>
-      <p>Paste clothing pictures or shop links. Get one picture of the whole outfit.</p>
+      <p>Add pictures of clothes. Get one picture of them together as an outfit.</p>
     </header>
 
     <main>
+      <details id="settings" class="panel settings">
+        <summary>
+          <h2>Setup</h2>
+          <span id="settings-summary" class="muted"></span>
+        </summary>
+
+        <p class="lead">
+          fitbash asks an AI image service to make your outfit picture. The service charges a few cents per picture
+          and bills you directly, so you connect your own account using a <strong>key</strong>: a long code that
+          works like a password. You only do this once.
+        </p>
+
+        <fieldset class="segmented">
+          <legend class="field-label">Which service?</legend>
+          <div id="providers" class="segments"></div>
+        </fieldset>
+
+        <ol class="steps">
+          <li>
+            <a id="provider-key-link" class="button" target="_blank" rel="noopener noreferrer">Open the key page</a>
+            <span id="provider-step-1"></span>
+          </li>
+          <li id="provider-step-2"></li>
+          <li>
+            <label for="provider-key">Paste the key here:</label>
+            <input id="provider-key" type="password" autocomplete="off" spellcheck="false" />
+            <p id="provider-key-status" class="status key-status" role="status"></p>
+          </li>
+        </ol>
+        <p id="provider-note" class="muted"></p>
+
+        <details class="sub">
+          <summary>Optional: double-check every picture</summary>
+          <p class="muted">
+            AI pictures sometimes change a shirt's print or leave a piece out. With a Claude key, each picture is
+            compared with your pieces and redone once if something is off. This adds a cent or two per picture,
+            billed by Anthropic.
+          </p>
+          <label for="claude-key" class="field-label">
+            <span>Claude key</span>
+            <a class="muted" href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">Get one</a>
+          </label>
+          <input id="claude-key" type="password" autocomplete="off" spellcheck="false" />
+          <p id="claude-key-status" class="status key-status" role="status"></p>
+        </details>
+
+        <details class="sub">
+          <summary>Advanced</summary>
+          <p class="muted">Leave these empty unless a service has renamed its model.</p>
+          <div class="field-group">
+            <div class="field">
+              <label for="provider-model" class="field-label">Image model name</label>
+              <input id="provider-model" type="text" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="claude-model" class="field-label">Claude model name</label>
+              <input id="claude-model" type="text" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+        </details>
+
+        <p class="muted keys-note">
+          Your keys are saved in this browser only. Each one is sent only to the service it belongs to, straight from
+          this page. On a shared computer, press “Forget my keys” when you’re done.
+        </p>
+        <button id="forget" type="button" class="quiet">Forget my keys</button>
+      </details>
+
       <section class="panel" aria-labelledby="pieces-heading">
         <div class="panel-head">
-          <h2 id="pieces-heading">Pieces</h2>
+          <h2 id="pieces-heading">1. Add your pieces</h2>
           <span id="count" class="muted"></span>
         </div>
 
         <div id="dropzone" class="dropzone">
           <ul id="items" class="items"></ul>
-          <p id="empty" class="empty">
-            Paste a picture or a link anywhere on this page, or drop picture files here.
-          </p>
+          <p id="empty" class="empty"></p>
         </div>
 
         <div class="add-row">
+          <button id="browse" type="button" class="quiet strong">Add pictures</button>
+          <input id="files" type="file" accept="image/*" multiple hidden />
           <form id="link-form" class="link-form">
             <label for="link" class="visually-hidden">Link to an item or its picture</label>
             <input id="link" type="url" inputmode="url" placeholder="https://shop.example/some-jacket" required />
             <button type="submit" class="quiet">Add link</button>
           </form>
-          <button id="browse" type="button" class="quiet">Add pictures</button>
-          <input id="files" type="file" accept="image/*" multiple hidden />
         </div>
+        <p class="muted tip">Screenshots and photos of clothes you own work too.</p>
         <p id="add-status" class="status" role="status"></p>
 
         <div id="picker" class="picker" hidden>
@@ -56,7 +123,7 @@
       </section>
 
       <section class="panel" aria-labelledby="look-heading">
-        <h2 id="look-heading">Look</h2>
+        <h2 id="look-heading">2. Pick a look</h2>
         <fieldset class="segmented">
           <legend class="visually-hidden">How to show the outfit</legend>
           <div id="styles" class="segments"></div>
@@ -76,60 +143,8 @@
         </div>
       </section>
 
-      <details id="settings" class="panel settings">
-        <summary>
-          <h2>Settings</h2>
-          <span id="settings-summary" class="muted"></span>
-        </summary>
-
-        <div class="fields">
-          <div class="field">
-            <label for="provider" class="field-label">Image model</label>
-            <select id="provider"></select>
-          </div>
-
-          <div id="provider-fields" class="field-group" hidden>
-            <div class="field">
-              <label for="provider-key" class="field-label">
-                <span id="provider-key-label">API key</span>
-                <a id="provider-key-link" class="muted" target="_blank" rel="noopener noreferrer">Get a key</a>
-              </label>
-              <input id="provider-key" type="password" autocomplete="off" spellcheck="false" />
-            </div>
-            <div class="field">
-              <label for="provider-model" class="field-label">Model <span class="muted">(optional)</span></label>
-              <input id="provider-model" type="text" autocomplete="off" spellcheck="false" />
-            </div>
-          </div>
-
-          <div class="field-group">
-            <div class="field">
-              <label for="claude-key" class="field-label">
-                <span>Claude API key for the quality check <span class="muted">(optional)</span></span>
-                <a class="muted" href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">Get a key</a>
-              </label>
-              <input id="claude-key" type="password" autocomplete="off" spellcheck="false" />
-            </div>
-            <div class="field">
-              <label for="claude-model" class="field-label">Model <span class="muted">(optional)</span></label>
-              <input id="claude-model" type="text" autocomplete="off" spellcheck="false" />
-            </div>
-          </div>
-          <p class="muted">
-            With a Claude key, each picture is compared with your pieces and redone once if a piece is missing or its
-            print came out wrong.
-          </p>
-        </div>
-
-        <p class="muted keys-note">
-          Keys are saved in this browser only. Each one is sent only to the company it belongs to, and the picture
-          requests go straight from your browser to them. Use keys with a spending limit.
-        </p>
-        <button id="forget" type="button" class="quiet">Forget saved keys</button>
-      </details>
-
       <section class="panel" aria-labelledby="result-heading">
-        <h2 id="result-heading">Outfit</h2>
+        <h2 id="result-heading">3. Your outfit</h2>
         <p id="progress" class="status" role="status">Your outfit picture shows up here.</p>
         <ol id="attempts" class="attempts"></ol>
       </section>

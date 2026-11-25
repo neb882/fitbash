@@ -43,13 +43,18 @@ export function createGeminiProvider({ apiKey, model, fetchImpl = fetch }) {
           response_format: { type: "image", aspect_ratio: aspectRatio },
         }),
         signal: AbortSignal.timeout(180_000),
-      }, "Gemini");
-      if (!res.ok) throw await errorFromResponse(res, "Gemini");
+      }, "Google");
+      if (!res.ok) {
+        throw await errorFromResponse(res, "Google", {
+          billing:
+            "Google won't make pictures with this key until billing is turned on for it. Open aistudio.google.com, set up billing for the key, then try again.",
+        });
+      }
 
       const image = parseGeminiImage(await res.json());
       if (!image) {
         throw new ProviderError(
-          "Gemini answered without a picture. It may have declined these items; try different pictures or notes.",
+          "Google answered without a picture. It may have declined these items. Try different pictures or notes.",
         );
       }
       return image;

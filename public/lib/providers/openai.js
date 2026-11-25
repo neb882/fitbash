@@ -30,7 +30,14 @@ export function createOpenAIProvider({ apiKey, model, quality, fetchImpl = fetch
         body: form,
         signal: AbortSignal.timeout(180_000),
       }, "OpenAI");
-      if (!res.ok) throw await errorFromResponse(res, "OpenAI");
+      if (!res.ok) {
+        throw await errorFromResponse(res, "OpenAI", {
+          billing:
+            "Your OpenAI account has no credit left. Add credit under Billing at platform.openai.com, then try again.",
+          verification:
+            "OpenAI wants your identity verified before it makes pictures. Do that under Settings, Organization at platform.openai.com, then try again.",
+        });
+      }
 
       const body = await res.json();
       const data = body?.data?.[0]?.b64_json;

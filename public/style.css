@@ -149,6 +149,11 @@ button.quiet {
   border-color: var(--line);
 }
 
+button.quiet.strong {
+  border-color: var(--ink);
+  font-weight: 600;
+}
+
 button.quiet:hover {
   border-color: var(--muted);
 }
@@ -161,16 +166,6 @@ button:disabled {
 :focus-visible {
   outline: 2px solid var(--highlight);
   outline-offset: 2px;
-}
-
-select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--ink);
-  font: inherit;
 }
 
 /* Pieces */
@@ -263,6 +258,10 @@ select {
   min-width: 0;
 }
 
+.tip {
+  margin: 10px 0 0;
+}
+
 .status {
   margin: 10px 0 0;
   min-height: 1.5em;
@@ -350,6 +349,12 @@ select {
   font-size: 0.95rem;
 }
 
+.segments small {
+  font-size: 0.85em;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
 .segments input:checked + span {
   background: var(--accent);
   color: var(--accent-ink);
@@ -422,31 +427,92 @@ select {
   content: "▾";
 }
 
-.fields {
+.lead {
+  margin: 16px 0;
+}
+
+.steps {
+  margin: 16px 0 12px;
+  padding-left: 1.4em;
   display: grid;
   gap: 14px;
-  margin-top: 16px;
+}
+
+.steps li::marker {
+  font-weight: 700;
+}
+
+.steps label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+a.button {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a.button::after {
+  content: " ↗";
+}
+
+.key-status {
+  margin-top: 6px;
+  min-height: 0;
+}
+
+.status.good {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.sub {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.sub > summary {
+  display: block;
+  font-weight: 600;
+}
+
+.sub > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1.1em;
+  color: var(--muted);
+}
+
+.sub[open] > summary::before {
+  content: "▾";
+}
+
+.sub p {
+  margin: 10px 0;
 }
 
 .field-group {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.field .field-label {
+.settings .field-label {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 4px 12px;
 }
 
-.field .field-label a {
+.settings .field-label a {
   font-weight: 400;
-}
-
-.fields p {
-  margin: -6px 0 0;
 }
 
 .keys-note {

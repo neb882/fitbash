@@ -28,7 +28,7 @@ export function createMockProvider() {
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">` +
         `<rect width="100%" height="100%" fill="#f4f1ec"/>${tiles}` +
         `<text x="${width / 2}" y="${height - 40}" text-anchor="middle" font-family="sans-serif" font-size="26" fill="#6b655c">` +
-        `Preview collage. Choose an image model in Settings for a real outfit picture.</text></svg>`;
+        `Just a collage for now. Finish Setup to get a real outfit picture.</text></svg>`;
 
       return { mimeType: "image/svg+xml", data: textToBase64(svg) };
     },

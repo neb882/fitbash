@@ -13,6 +13,7 @@ Outfit maker: item pictures in, one generated outfit picture out. It is a static
 - This repository is public-facing. Never commit names, emails, usernames, chat screenshots, real photos of people, API keys or `.env` files. Test fixtures are synthetic.
 - Everything under `public/` must run in a browser from a subfolder: relative URLs only, no Node APIs, no build step, no front-end framework. The server test enforces the first two.
 - API keys live only in the user's browser storage and go only to their own provider. Don't add analytics, third-party scripts or CDN imports, and keep `connect-src` in `public/index.html` limited to the providers the page actually calls.
+- The people using the page are not technical. Text on the page says what to do in everyday words ("key", "service", "picture"), every error says what to do next, and anything optional or advanced stays out of the main path.
 - The content security policy forbids inline scripts and styles.
 - Claude calls use the official `@anthropic-ai/sdk`. The browser loads it from `public/vendor/anthropic-sdk.js`, which is generated: change the version in `package.json` and run `npm run vendor`, never edit the file.
 - Every user-supplied URL the server fetches goes through `src/safe-fetch.js`. Don't call `fetch` on one directly. The server listens on 127.0.0.1 unless `HOST` says otherwise.

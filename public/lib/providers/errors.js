@@ -8,8 +8,12 @@ export class ProviderError extends Error {
   }
 }
 
-/** Turn a non-2xx response from an image API into a ProviderError. */
-export async function errorFromResponse(res, providerName) {
+/**
+ * Turn a non-2xx response from an image API into a ProviderError.
+ * `help` holds plain-language advice for the two setup problems people hit
+ * most: { billing, verification }.
+ */
+export async function errorFromResponse(res, providerName, help = {}) {
   let detail = "";
   try {
     const body = await res.json();
@@ -17,15 +21,25 @@ export async function errorFromResponse(res, providerName) {
   } catch {
     // Not JSON; the status code is all we have.
   }
-  const summary =
-    res.status === 401 || res.status === 403
-      ? `${providerName} rejected the API key.`
-      : res.status === 429
-        ? `${providerName} is rate limiting this key, or it is out of credit. Try again shortly.`
-        : res.status >= 500
-          ? `${providerName} is having trouble right now. Try again shortly.`
-          : `${providerName} couldn't make that picture.`;
-  return new ProviderError(detail ? `${summary} (${detail})` : summary, { status: res.status, detail });
+
+  let summary;
+  if (help.verification && /verif/i.test(detail)) {
+    summary = help.verification;
+  } else if (help.billing && (res.status === 429 || res.status === 402) && /quota|billing|credit|free.tier|limit: 0/i.test(detail)) {
+    summary = help.billing;
+  } else if (res.status === 401 || res.status === 403 || /api key not valid/i.test(detail)) {
+    summary = `${providerName} didn't accept your key. Check it in Setup.`;
+  } else if (res.status === 429) {
+    summary = `${providerName} is getting too many requests from your account right now. Wait a minute and try again.`;
+  } else if (res.status === 404) {
+    summary = `${providerName} doesn't know the model fitbash asked for. It may have been renamed: see Advanced in Setup.`;
+  } else if (res.status >= 500) {
+    summary = `${providerName} is having trouble right now. Try again in a minute.`;
+  } else {
+    summary = `${providerName} couldn't make that picture.`;
+  }
+  const message = detail ? `${summary} (${providerName} said: ${detail.slice(0, 240)})` : summary;
+  return new ProviderError(message, { status: res.status, detail });
 }
 
 /** fetch() that reports a dropped connection or a timeout as a ProviderError. */

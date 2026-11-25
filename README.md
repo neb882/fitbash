@@ -2,7 +2,7 @@
 
 An outfit maker. Paste pictures of clothing items and get one generated picture of the pieces together as an outfit. It isn't tied to any store or brand, so you can try a shirt you already own against a cheap jacket you found online before buying anything.
 
-It is a static web page: everything runs in your browser, with your own API key for the image model. There are two ways to use it.
+It is a static web page: everything runs in your browser, using your own account with an AI image service. There are two ways to open it.
 
 ## Use it as a website (GitHub Pages)
 
@@ -11,7 +11,7 @@ The page lives in `public/` and needs no server, so GitHub Pages can host it for
 1. In the repository on GitHub, open **Settings → Pages** and set **Source** to **GitHub Actions**.
 2. Push to `main`, or run the **Deploy to GitHub Pages** workflow by hand from the **Actions** tab.
 
-The site appears at `https://<your-username>.github.io/<repository>/`. Everyone who uses it enters their own API key (see below), so hosting it costs you nothing and nobody can spend your credit.
+The site appears at `https://<your-username>.github.io/<repository>/`. Everyone who uses it connects their own account (see setup below), so hosting it costs you nothing and nobody can spend your credit.
 
 ## Run it on your computer
 
@@ -23,22 +23,27 @@ npm start
 
 Open http://localhost:3000. Running it locally adds one feature the website can't have: paste a link to a product page and fitbash finds the item's picture for you. A browser isn't allowed to read other sites' pages, so that part needs the small local server.
 
-## Choosing an image model
+## First-time setup (a few minutes, once)
 
-Out of the box the page uses a stand-in that tiles your pictures into a plain collage, so you can try it before paying for anything. For real outfit pictures, open **Settings** on the page, choose an image model and paste your API key:
+The page walks you through this in its **Setup** box:
 
-| Image model | Where to get a key | Default model |
-| --- | --- | --- |
-| Google Gemini | https://aistudio.google.com/apikey | `gemini-nano-banana-2.1` |
-| OpenAI | https://platform.openai.com/api-keys | `gpt-image-2.5-sunburst` |
+1. Pick a service. Google Gemini is the easier one.
+2. Press the button to open that service's key page, sign in, and create a key. A key is a long code that works like a password and lets fitbash make pictures on your account.
+3. Paste the key into the page. It tells you straight away whether the key works.
 
-Both take several reference pictures in one request and charge per picture, usually a few cents. Check the provider's pricing page for current numbers. The model name can be changed in Settings when the providers release new ones.
+After that you just add pictures and press **Make the outfit**. Before setup is finished the page still works, but gives you a plain collage of your pieces instead of a real outfit picture.
 
-The Gemini and OpenAI adapters were written from the providers' documentation and are covered by tests that pin the documented request and response shapes. They have not yet been run against the live APIs, so expect to fix a detail or two on first use.
+Things worth knowing before you start:
+
+- **Pictures cost money**, usually a few cents each, billed by the service to your own account. Both services want a payment method on file before they make pictures.
+- **Google** needs billing turned on for the key. **OpenAI** needs prepaid credit and an identity check, which takes longer. If either is missing, the page tells you which.
+- Services rename their models now and then. If pictures stop working with a message about an unknown model, the current name goes under **Advanced** in Setup. The defaults are `gemini-nano-banana-2.1` and `gpt-image-2.5-sunburst`.
+
+The Gemini and OpenAI connections were written from the services' documentation and are covered by tests that pin the documented request and response shapes. They have not yet been run against the live services, so expect to fix a detail or two on first use.
 
 ## The quality check
 
-Image models often return a polished picture that has quietly changed what matters: a graphic tee's print redrawn, a color shifted, a piece left out. If you also add a Claude API key in Settings, every generated picture goes to Claude along with your item pictures. Claude reports per item whether it is present and true to its picture. When something is off, fitbash regenerates once with Claude's notes, shows both attempts with their verdicts, and marks the better one.
+Image models often return a polished picture that has quietly changed what matters: a graphic tee's print redrawn, a color shifted, a piece left out. If you also add a Claude key under **Optional: double-check every picture** in Setup, every generated picture goes to Claude along with your item pictures. Claude reports per item whether it is present and true to its picture. When something is off, fitbash regenerates once with Claude's notes, shows both attempts with their verdicts, and marks the better one.
 
 Each check is one Claude request, which adds about a cent or two per picture on the default model. Without a Claude key you get a single unchecked picture.
 
@@ -54,7 +59,7 @@ An outfit takes up to 8 pieces. Pictures are shrunk to 1536 pixels on the long s
 
 ## Your keys and pictures
 
-- API keys are saved in your browser's local storage and nowhere else. **Forget saved keys** in Settings removes them.
+- Keys are saved in your browser's local storage and nowhere else. **Forget my keys** in Setup removes them.
 - Requests go straight from your browser to the provider the key belongs to. The page's content security policy allows it to contact only itself, Google, OpenAI and Anthropic, and to run only its own scripts.
 - Nothing is stored by fitbash: no accounts, no database, no analytics. Your item pictures go to the image provider you chose, and to Anthropic if the quality check is on, under those providers' terms.
 - A key kept in a browser can be read by anyone with access to that browser profile. Use keys with a spending limit, and don't save them on a shared computer.
@@ -67,6 +72,7 @@ public/                      the whole app; this folder is what GitHub Pages ser
   lib/pipeline.js            generate, check, redo loop with the attempt cap
   lib/prompt.js              the instruction sent to the image model, and the three looks
   lib/critic.js              the Claude check (structured verdict per item)
+  lib/keycheck.js            tells a person whether a pasted key works, at no cost
   lib/providers/             gemini, openai and mock image models behind one generate() call
   vendor/anthropic-sdk.js    browser build of the official Anthropic SDK (generated, see below)
 server.js                    optional local server: serves public/ and adds link lookup

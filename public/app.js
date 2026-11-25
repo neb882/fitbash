@@ -4,8 +4,9 @@
 
 import { runOutfit } from "./lib/pipeline.js";
 import { STYLES, DEFAULT_STYLE } from "./lib/prompt.js";
-import { createProvider, PROVIDERS, ProviderError } from "./lib/providers/index.js";
+import { createProvider, PROVIDERS, DEFAULT_PROVIDER, ProviderError } from "./lib/providers/index.js";
 import { createCritic, DEFAULT_CRITIC_MODEL } from "./lib/critic.js";
+import { checkKey } from "./lib/keycheck.js";
 
 const MAX_EDGE = 1536; // Item pictures are shrunk to this before they are sent.
 const MAX_ITEMS = 8;
@@ -33,13 +34,16 @@ const ui = {
   setup: $("setup"),
   settings: $("settings"),
   settingsSummary: $("settings-summary"),
-  provider: $("provider"),
-  providerFields: $("provider-fields"),
-  providerKey: $("provider-key"),
-  providerKeyLabel: $("provider-key-label"),
+  providers: $("providers"),
   providerKeyLink: $("provider-key-link"),
+  providerStep1: $("provider-step-1"),
+  providerStep2: $("provider-step-2"),
+  providerNote: $("provider-note"),
+  providerKey: $("provider-key"),
+  providerKeyStatus: $("provider-key-status"),
   providerModel: $("provider-model"),
   claudeKey: $("claude-key"),
+  claudeKeyStatus: $("claude-key-status"),
   claudeModel: $("claude-model"),
   forget: $("forget"),
   progress: $("progress"),
@@ -49,7 +53,7 @@ const ui = {
 const state = {
   items: [], // { id, label, mimeType, data, preview }
   settings: {
-    provider: "mock",
+    provider: DEFAULT_PROVIDER,
     geminiKey: "",
     geminiModel: "",
     openaiKey: "",
@@ -74,7 +78,7 @@ function el(tag, props = {}, children = []) {
   return node;
 }
 
-// ---- settings --------------------------------------------------------------
+// ---- setup ---------------------------------------------------------------
 
 function loadSettings() {
   try {
@@ -85,7 +89,7 @@ function loadSettings() {
   } catch {
     // No storage (private window) or a damaged entry: start from the defaults.
   }
-  if (!PROVIDERS[state.settings.provider]) state.settings.provider = "mock";
+  if (!PROVIDERS[state.settings.provider]) state.settings.provider = DEFAULT_PROVIDER;
 }
 
 function saveSettings() {
@@ -96,54 +100,79 @@ function saveSettings() {
   }
 }
 
-function checkIsOn() {
-  return state.settings.provider !== "mock" && Boolean(state.settings.claudeKey);
-}
+const imageKey = () => state.settings[`${state.settings.provider}Key`];
+const checkIsOn = () => Boolean(imageKey() && state.settings.claudeKey);
 
-/** Fill the Settings fields from state, for the chosen image model. */
+/** Fill the Setup panel from state, for the chosen image service. */
 function renderSettings() {
   const { settings } = state;
   const chosen = PROVIDERS[settings.provider];
-  ui.provider.value = settings.provider;
+  for (const input of ui.providers.querySelectorAll("input")) input.checked = input.value === settings.provider;
 
-  ui.providerFields.hidden = settings.provider === "mock";
-  if (settings.provider !== "mock") {
-    ui.providerKeyLabel.textContent = `${chosen.label} API key`;
-    ui.providerKeyLink.href = chosen.keyUrl;
-    ui.providerKey.value = settings[`${settings.provider}Key`];
-    ui.providerModel.value = settings[`${settings.provider}Model`];
-    ui.providerModel.placeholder = chosen.defaultModel;
-  }
+  ui.providerKeyLink.textContent = chosen.openKeyPage;
+  ui.providerKeyLink.href = chosen.keyUrl;
+  ui.providerStep1.textContent = chosen.signIn;
+  ui.providerStep2.textContent = chosen.createKey;
+  ui.providerNote.textContent = chosen.note;
+  ui.providerKey.value = imageKey();
+  ui.providerModel.value = settings[`${settings.provider}Model`];
+  ui.providerModel.placeholder = chosen.defaultModel;
   ui.claudeKey.value = settings.claudeKey;
   ui.claudeModel.value = settings.claudeModel;
   ui.claudeModel.placeholder = DEFAULT_CRITIC_MODEL;
 
-  const missingKey = settings.provider !== "mock" && !settings[`${settings.provider}Key`];
-  ui.settingsSummary.textContent =
-    settings.provider === "mock"
-      ? "Preview collage. Choose an image model for real pictures."
-      : missingKey
-        ? `${chosen.label}: add your API key`
-        : `${chosen.label}${checkIsOn() ? ", quality check on" : ""}`;
-  ui.setup.textContent =
-    settings.provider === "mock"
-      ? "No image model chosen yet, so you'll get a plain collage. See Settings."
-      : missingKey
-        ? "Add your API key in Settings first."
-        : checkIsOn()
-          ? "Each picture is checked against your pieces and redone once if it's off."
-          : "";
+  ui.settingsSummary.textContent = imageKey()
+    ? `${chosen.label} connected${checkIsOn() ? ", double-check on" : ""}`
+    : "Do this once to get real outfit pictures. It takes a few minutes.";
+  ui.setup.textContent = imageKey()
+    ? checkIsOn()
+      ? "Each picture is checked against your pieces and redone once if it's off."
+      : ""
+    : "Setup isn't finished yet, so you'll get a simple collage instead of a real outfit picture.";
+}
+
+const KEY_MESSAGES = {
+  checking: ["Checking the key…", false],
+  ok: ["This key works.", false],
+  rejected: ["That key wasn't accepted. Copy it again from the key page; it's easy to miss a character.", true],
+  unknown: ["Couldn't check the key just now. You can still try making an outfit.", false],
+};
+
+/** Check a pasted key after a short pause, and say whether it works. */
+function watchKey(input, statusLine, service) {
+  let timer;
+  let latest = 0;
+  const show = (status) => {
+    const [text, isError] = KEY_MESSAGES[status] ?? ["", false];
+    statusLine.textContent = text;
+    statusLine.classList.toggle("error", isError);
+    statusLine.classList.toggle("good", status === "ok");
+  };
+  const run = () => {
+    clearTimeout(timer);
+    const runId = ++latest;
+    const key = input.value.trim();
+    if (!key) return show("");
+    show("checking");
+    timer = setTimeout(async () => {
+      const result = await checkKey(service(), key);
+      if (runId === latest) show(result);
+    }, 600);
+  };
+  input.addEventListener("input", run);
+  return { clear: () => (latest++, clearTimeout(timer), show("")) };
 }
 
 function wireSettings() {
-  ui.provider.replaceChildren(
-    ...Object.entries(PROVIDERS).map(([id, provider]) => el("option", { value: id, text: provider.label })),
+  ui.providers.replaceChildren(
+    ...Object.entries(PROVIDERS).map(([id, provider]) =>
+      el("label", {}, [
+        el("input", { type: "radio", name: "provider", value: id }),
+        el("span", {}, [provider.label, el("small", { text: ` · ${provider.hint}` })]),
+      ]),
+    ),
   );
-  ui.provider.addEventListener("change", () => {
-    state.settings.provider = ui.provider.value;
-    saveSettings();
-    renderSettings();
-  });
+
   const bind = (input, key) =>
     input.addEventListener("input", () => {
       state.settings[key()] = input.value.trim();
@@ -154,12 +183,27 @@ function wireSettings() {
   bind(ui.providerModel, () => `${state.settings.provider}Model`);
   bind(ui.claudeKey, () => "claudeKey");
   bind(ui.claudeModel, () => "claudeModel");
+  const providerStatus = watchKey(ui.providerKey, ui.providerKeyStatus, () => state.settings.provider);
+  const claudeStatus = watchKey(ui.claudeKey, ui.claudeKeyStatus, () => "claude");
 
-  ui.forget.addEventListener("click", () => {
-    state.settings.geminiKey = state.settings.openaiKey = state.settings.claudeKey = "";
+  ui.providers.addEventListener("change", (event) => {
+    state.settings.provider = event.target.value;
+    providerStatus.clear();
     saveSettings();
     renderSettings();
   });
+  ui.forget.addEventListener("click", () => {
+    state.settings.geminiKey = state.settings.openaiKey = state.settings.claudeKey = "";
+    providerStatus.clear();
+    claudeStatus.clear();
+    saveSettings();
+    renderSettings();
+  });
+}
+
+function openSetup() {
+  ui.settings.open = true;
+  ui.settings.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // ---- items -----------------------------------------------------------------
@@ -462,7 +506,7 @@ function handleEvent(event, maxAttempts) {
       break;
     case "done":
       markBest(event.best, event.attempts);
-      setProgress(state.settings.provider === "mock" ? "This is the preview collage. Choose an image model in Settings to get a real outfit picture." : "Done.");
+      setProgress(imageKey() ? "Done." : "This is only a collage of your pieces. Finish Setup at the top of the page to get a real outfit picture.");
       break;
   }
 }
@@ -477,7 +521,8 @@ async function generate() {
 
   const { settings } = state;
   try {
-    const provider = createProvider(settings);
+    // Until a key is connected, the keyless stand-in shows what the page does.
+    const provider = createProvider(imageKey() ? settings : { provider: "mock" });
     const critic = checkIsOn()
       ? createCritic({ apiKey: settings.claudeKey, model: settings.claudeModel || DEFAULT_CRITIC_MODEL })
       : null;
@@ -494,7 +539,7 @@ async function generate() {
   } catch (error) {
     if (!(error instanceof ProviderError)) console.error(error);
     setProgress(error instanceof ProviderError ? error.message : "Something went wrong while making the picture.", true);
-    if (error instanceof ProviderError && /in Settings/.test(error.message)) ui.settings.open = true;
+    if (error instanceof ProviderError && /in Setup/.test(error.message)) openSetup();
   } finally {
     state.busy = false;
     updateGenerate();
@@ -587,11 +632,15 @@ async function start() {
   );
   renderItems();
 
+  // First visit: show the setup steps instead of hiding them behind a click.
+  if (!imageKey()) ui.settings.open = true;
+
   state.linkLookup = await detectHelper();
-  if (!state.linkLookup) {
-    ui.link.placeholder = "https://… link to a picture";
-    ui.empty.textContent = "Paste a picture anywhere on this page, or drop picture files here.";
-  }
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  ui.empty.textContent = touch
+    ? "Tap “Add pictures” to choose photos or screenshots of the clothes."
+    : `Drop pictures here, or copy one and paste it anywhere on this page${state.linkLookup ? ". Shop links work too." : "."}`;
+  if (!state.linkLookup) ui.link.placeholder = "https://… link to a picture";
 }
 
 start();
