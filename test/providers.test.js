@@ -1,11 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createGeminiProvider, parseGeminiImage } from "../src/providers/gemini.js";
-import { createOpenAIProvider } from "../src/providers/openai.js";
-import { createMockProvider } from "../src/providers/mock.js";
-import { createProvider, ProviderError } from "../src/providers/index.js";
-import { loadConfig } from "../src/config.js";
+import { createGeminiProvider, parseGeminiImage } from "../public/lib/providers/gemini.js";
+import { createOpenAIProvider } from "../public/lib/providers/openai.js";
+import { createMockProvider } from "../public/lib/providers/mock.js";
+import { createProvider, PROVIDERS, ProviderError } from "../public/lib/providers/index.js";
 
 const images = [
   { mimeType: "image/jpeg", data: Buffer.from("one").toString("base64") },
@@ -33,7 +32,8 @@ test("gemini sends the prompt and every picture, and reads the picture back", as
 
   assert.deepEqual(out, { mimeType: "image/jpeg", data: "FINAL" });
   assert.equal(calls[0].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
-  assert.equal(calls[0].init.headers["x-goog-api-key"], "g-key");
+  // Browsers may send only these two headers to the Gemini API.
+  assert.deepEqual(calls[0].init.headers, { "content-type": "application/json", "x-goog-api-key": "g-key" });
   assert.deepEqual(JSON.parse(calls[0].init.body), {
     model: "some-model",
     input: [
@@ -96,18 +96,33 @@ test("the mock provider returns an SVG collage holding every picture", async () 
   assert.ok(svg.includes(images[1].data));
 });
 
-test("the configured provider is built, and a missing key is reported", () => {
-  assert.equal(createProvider(loadConfig({})).name, "mock");
-  assert.equal(createProvider(loadConfig({ FITBASH_PROVIDER: "gemini", GEMINI_API_KEY: "k" })).name, "gemini");
-  assert.equal(createProvider(loadConfig({ FITBASH_PROVIDER: "OpenAI", OPENAI_API_KEY: "k" })).name, "openai");
-  assert.throws(() => createProvider(loadConfig({ FITBASH_PROVIDER: "gemini" })), /GEMINI_API_KEY/);
-  assert.throws(() => createProvider(loadConfig({ FITBASH_PROVIDER: "dalle" })), /Unknown FITBASH_PROVIDER/);
+test("the picture format is read from the data when Gemini doesn't name it", () => {
+  const body = (data) => ({ steps: [{ type: "model_output", content: [{ type: "image", data }] }] });
+  assert.equal(parseGeminiImage(body("/9j/4AAQ")).mimeType, "image/jpeg");
+  assert.equal(parseGeminiImage(body("UklGRiQA")).mimeType, "image/webp");
+  assert.equal(parseGeminiImage(body("iVBORw0K")).mimeType, "image/png");
 });
 
-test("config clamps the attempt cap and turns the check on only with a Claude key", () => {
-  assert.equal(loadConfig({}).maxAttempts, 2);
-  assert.equal(loadConfig({ FITBASH_MAX_ATTEMPTS: "99" }).maxAttempts, 4);
-  assert.equal(loadConfig({ FITBASH_MAX_ATTEMPTS: "0" }).maxAttempts, 1);
-  assert.equal(loadConfig({}).criticEnabled, false);
-  assert.equal(loadConfig({ ANTHROPIC_API_KEY: "k" }).criticEnabled, true);
+test("a dropped connection or timeout becomes a readable error", async () => {
+  const offline = async () => { throw new TypeError("Failed to fetch"); };
+  const slow = async () => { throw new DOMException("timed out", "TimeoutError"); };
+  await assert.rejects(
+    createGeminiProvider({ apiKey: "k", model: "m", fetchImpl: offline }).generate({ prompt: "p", images, aspectRatio: "1:1" }),
+    (error) => error instanceof ProviderError && /Gemini couldn't be reached/.test(error.message),
+  );
+  await assert.rejects(
+    createOpenAIProvider({ apiKey: "k", model: "m", fetchImpl: slow }).generate({ prompt: "p", images, aspectRatio: "1:1" }),
+    (error) => error instanceof ProviderError && /OpenAI took too long/.test(error.message),
+  );
+});
+
+test("the chosen provider is built with its default model, and a missing key is reported", () => {
+  assert.equal(createProvider({ provider: "mock" }).name, "mock");
+  assert.equal(createProvider({ provider: "something-else" }).name, "mock");
+  const gemini = createProvider({ provider: "gemini", geminiKey: "k" });
+  assert.deepEqual([gemini.name, gemini.model], ["gemini", PROVIDERS.gemini.defaultModel]);
+  const openai = createProvider({ provider: "openai", openaiKey: "k", openaiModel: "custom" });
+  assert.deepEqual([openai.name, openai.model], ["openai", "custom"]);
+  assert.throws(() => createProvider({ provider: "gemini" }), (e) => e instanceof ProviderError && /Gemini API key in Settings/.test(e.message));
+  assert.throws(() => createProvider({ provider: "openai", geminiKey: "k" }), /OpenAI API key in Settings/);
 });

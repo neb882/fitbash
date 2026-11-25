@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import Anthropic from "@anthropic-ai/sdk";
+// The same copy of the SDK the page loads, so error classes match.
+import { Anthropic } from "../public/vendor/anthropic-sdk.js";
 
-import { createCritic } from "../src/critic.js";
+import { createCritic } from "../public/lib/critic.js";
 
 const items = [
   { mimeType: "image/jpeg", data: "AAAA", label: "frog tee" },
@@ -86,7 +87,7 @@ test("refusals, unreadable answers and API errors are reported as skipped, never
   assert.match((await run(() => ({ stop_reason: "end_turn", parsed_output: null }))).reason, /unreadable/);
   assert.match(
     (await run(() => { throw new Anthropic.AuthenticationError(401, {}, "nope", new Headers()); })).reason,
-    /key was rejected/,
+    /rejected the API key/,
   );
   assert.match(
     (await run(() => { throw new Anthropic.RateLimitError(429, {}, "slow down", new Headers()); })).reason,
@@ -96,5 +97,42 @@ test("refusals, unreadable answers and API errors are reported as skipped, never
     (await run(() => { throw new Anthropic.InternalServerError(500, {}, "boom", new Headers()); })).reason,
     /API error 500/,
   );
+  assert.match((await run(() => { throw new Anthropic.APIConnectionError({ message: "offline" }); })).reason, /couldn't reach Anthropic/);
   assert.match((await run(() => { throw new TypeError("socket"); })).reason, /unexpectedly/);
+});
+
+test("the browser copy of the SDK builds a real request from the check's schema", async () => {
+  // No fake client here: the real SDK runs, with only the network stubbed out.
+  let sent;
+  const answer = { ...parsed, score: 7 };
+  const client = new Anthropic({
+    apiKey: "test-key",
+    baseURL: "https://api.anthropic.com",
+    dangerouslyAllowBrowser: true,
+    maxRetries: 0,
+    fetch: async (url, init) => {
+      sent = { url: String(url), headers: new Headers(init.headers), body: JSON.parse(init.body) };
+      return new Response(
+        JSON.stringify({
+          id: "msg_1", type: "message", role: "assistant", model: "claude-opus-5-5",
+          content: [{ type: "text", text: JSON.stringify(answer) }],
+          stop_reason: "end_turn", stop_sequence: null,
+          usage: { input_tokens: 10, output_tokens: 10 },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
+  const review = await createCritic({ model: "claude-opus-5-5", client }).review({ items, generated, fillGaps: true });
+
+  assert.equal(review.status, "reviewed");
+  assert.equal(review.score, 7);
+  assert.equal(review.fix, "Item 1: copy the frog print exactly.");
+  assert.match(sent.url, /^https:\/\/api\.anthropic\.com\/v1\/messages/);
+  assert.equal(sent.headers.get("authorization"), "Bearer test-key");
+  assert.equal(sent.headers.get("anthropic-dangerous-direct-browser-access"), "true");
+  assert.match(sent.headers.get("anthropic-beta"), /server-side-fallback-2026-07-01/);
+  assert.equal(sent.body.fallbacks, "default");
+  assert.equal(sent.body.output_config.format.type, "json_schema");
+  assert.deepEqual(sent.body.output_config.format.schema.required, ["items", "other_problems", "score", "verdict", "fix_instructions"]);
 });

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { runOutfit, pickBest } from "../src/pipeline.js";
-import { ProviderError } from "../src/providers/errors.js";
+import { runOutfit, pickBest } from "../public/lib/pipeline.js";
+import { ProviderError } from "../public/lib/providers/errors.js";
 
 const request = {
   items: [{ mimeType: "image/jpeg", data: "AAAA", label: "frog tee" }],

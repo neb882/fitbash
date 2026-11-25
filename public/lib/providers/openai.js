@@ -1,7 +1,8 @@
 // OpenAI GPT Image models through the image edits endpoint, which takes
 // several reference pictures. Shapes follow the image generation guide as of 2026-11.
 
-import { ProviderError, errorFromResponse } from "./errors.js";
+import { ProviderError, errorFromResponse, send } from "./errors.js";
+import { base64ToBytes } from "../base64.js";
 
 const ENDPOINT = "https://api.openai.com/v1/images/edits";
 
@@ -19,16 +20,16 @@ export function createOpenAIProvider({ apiKey, model, quality, fetchImpl = fetch
       form.set("size", SIZES[aspectRatio] ?? SIZES["1:1"]);
       if (quality) form.set("quality", quality);
       images.forEach((img, i) => {
-        const blob = new Blob([Buffer.from(img.data, "base64")], { type: img.mimeType });
+        const blob = new Blob([base64ToBytes(img.data)], { type: img.mimeType });
         form.append("image[]", blob, `item-${i + 1}.${EXTENSIONS[img.mimeType] ?? "png"}`);
       });
 
-      const res = await fetchImpl(ENDPOINT, {
+      const res = await send(fetchImpl, ENDPOINT, {
         method: "POST",
         headers: { authorization: `Bearer ${apiKey}` },
         body: form,
         signal: AbortSignal.timeout(180_000),
-      });
+      }, "OpenAI");
       if (!res.ok) throw await errorFromResponse(res, "OpenAI");
 
       const body = await res.json();

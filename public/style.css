@@ -163,18 +163,14 @@ button:disabled {
   outline-offset: 2px;
 }
 
-.code-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--panel);
+select {
+  width: 100%;
+  padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px 20px;
-}
-
-.code-bar input {
-  max-width: 240px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
 }
 
 /* Pieces */
@@ -396,6 +392,69 @@ button:disabled {
   margin-top: 16px;
 }
 
+/* Settings */
+
+.settings summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings summary h2 {
+  margin: 0;
+}
+
+.settings summary h2::before {
+  content: "▸";
+  display: inline-block;
+  width: 1.1em;
+  color: var(--muted);
+}
+
+.settings[open] summary h2::before {
+  content: "▾";
+}
+
+.fields {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.field-group {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.field .field-label {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.field .field-label a {
+  font-weight: 400;
+}
+
+.fields p {
+  margin: -6px 0 0;
+}
+
+.keys-note {
+  margin: 16px 0 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
 /* Result */
 
 .attempts {
@@ -499,7 +558,7 @@ a.download {
     grid-template-columns: 1fr;
   }
 
-  .code-bar {
-    flex-wrap: wrap;
+  .field-group {
+    grid-template-columns: 1fr;
   }
 }

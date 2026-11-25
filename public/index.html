@@ -3,10 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Scripts come only from this site, and the page may talk only to itself
+         and the three AI providers. That keeps saved API keys from going anywhere else. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
     <title>fitbash</title>
     <meta name="description" content="Paste clothing pictures or links and see them together as one outfit." />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="masthead">
@@ -15,12 +22,6 @@
     </header>
 
     <main>
-      <form id="code-form" class="code-bar" hidden>
-        <label for="code">Access code</label>
-        <input id="code" type="password" autocomplete="off" required />
-        <button type="submit" class="quiet">Save</button>
-      </form>
-
       <section class="panel" aria-labelledby="pieces-heading">
         <div class="panel-head">
           <h2 id="pieces-heading">Pieces</h2>
@@ -36,7 +37,7 @@
 
         <div class="add-row">
           <form id="link-form" class="link-form">
-            <label for="link" class="visually-hidden">Product link</label>
+            <label for="link" class="visually-hidden">Link to an item or its picture</label>
             <input id="link" type="url" inputmode="url" placeholder="https://shop.example/some-jacket" required />
             <button type="submit" class="quiet">Add link</button>
           </form>
@@ -75,6 +76,58 @@
         </div>
       </section>
 
+      <details id="settings" class="panel settings">
+        <summary>
+          <h2>Settings</h2>
+          <span id="settings-summary" class="muted"></span>
+        </summary>
+
+        <div class="fields">
+          <div class="field">
+            <label for="provider" class="field-label">Image model</label>
+            <select id="provider"></select>
+          </div>
+
+          <div id="provider-fields" class="field-group" hidden>
+            <div class="field">
+              <label for="provider-key" class="field-label">
+                <span id="provider-key-label">API key</span>
+                <a id="provider-key-link" class="muted" target="_blank" rel="noopener noreferrer">Get a key</a>
+              </label>
+              <input id="provider-key" type="password" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="provider-model" class="field-label">Model <span class="muted">(optional)</span></label>
+              <input id="provider-model" type="text" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+
+          <div class="field-group">
+            <div class="field">
+              <label for="claude-key" class="field-label">
+                <span>Claude API key for the quality check <span class="muted">(optional)</span></span>
+                <a class="muted" href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">Get a key</a>
+              </label>
+              <input id="claude-key" type="password" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="claude-model" class="field-label">Model <span class="muted">(optional)</span></label>
+              <input id="claude-model" type="text" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+          <p class="muted">
+            With a Claude key, each picture is compared with your pieces and redone once if a piece is missing or its
+            print came out wrong.
+          </p>
+        </div>
+
+        <p class="muted keys-note">
+          Keys are saved in this browser only. Each one is sent only to the company it belongs to, and the picture
+          requests go straight from your browser to them. Use keys with a spending limit.
+        </p>
+        <button id="forget" type="button" class="quiet">Forget saved keys</button>
+      </details>
+
       <section class="panel" aria-labelledby="result-heading">
         <h2 id="result-heading">Outfit</h2>
         <p id="progress" class="status" role="status">Your outfit picture shows up here.</p>
@@ -82,6 +135,6 @@
       </section>
     </main>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>

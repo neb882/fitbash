@@ -27,3 +27,13 @@ export async function errorFromResponse(res, providerName) {
           : `${providerName} couldn't make that picture.`;
   return new ProviderError(detail ? `${summary} (${detail})` : summary, { status: res.status, detail });
 }
+
+/** fetch() that reports a dropped connection or a timeout as a ProviderError. */
+export async function send(fetchImpl, url, init, providerName) {
+  try {
+    return await fetchImpl(url, init);
+  } catch (error) {
+    const reason = error?.name === "TimeoutError" ? "took too long to answer" : "couldn't be reached";
+    throw new ProviderError(`${providerName} ${reason}. Check your connection and try again.`);
+  }
+}

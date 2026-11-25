@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildPrompt, STYLES } from "../src/prompt.js";
+import { buildPrompt, STYLES } from "../public/lib/prompt.js";
 
 const items = [{ label: "frog tee" }, { label: "  " }, {}];
 

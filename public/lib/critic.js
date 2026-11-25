@@ -1,37 +1,55 @@
 // The checking half of the generate-and-check loop: Claude compares a generated
 // outfit picture with the reference pictures and says what, if anything, to fix.
 
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { z } from "zod";
-
 // Formats Claude can read. The mock provider's SVG collage isn't one of them.
 const READABLE = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 // The API caps each image at 5 MB; base64 length is what counts.
 const MAX_BASE64_LENGTH = 5 * 1024 * 1024;
 
-const ReviewSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        number: z.number().int().describe("The reference item's number, starting at 1."),
-        present: z.boolean().describe("The item appears in the generated picture."),
-        faithful: z
-          .boolean()
-          .describe("Its color, cut and any print or lettering match the reference. False when absent."),
-        problem: z.string().describe("What differs from the reference, in a few words. Empty when nothing does."),
-      }),
-    )
-    .describe("One entry per reference item, in order."),
-  other_problems: z
-    .string()
-    .describe("Problems not tied to one item: duplicated pieces, unrequested pieces, distorted bodies, captions. Empty when none."),
-  score: z.number().int().describe("Overall quality from 1 (unusable) to 10 (every item right, clean picture)."),
-  verdict: z.enum(["pass", "fail"]),
-  fix_instructions: z
-    .string()
-    .describe("When the verdict is fail: direct instructions for the image model's next attempt. Empty on pass."),
-});
+export const DEFAULT_CRITIC_MODEL = "claude-opus-5-5";
+
+const REVIEW_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["items", "other_problems", "score", "verdict", "fix_instructions"],
+  properties: {
+    items: {
+      type: "array",
+      description: "One entry per reference item, in order.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["number", "present", "faithful", "problem"],
+        properties: {
+          number: { type: "integer", description: "The reference item's number, starting at 1." },
+          present: { type: "boolean", description: "The item appears in the generated picture." },
+          faithful: {
+            type: "boolean",
+            description: "Its color, cut and any print or lettering match the reference. False when absent.",
+          },
+          problem: {
+            type: "string",
+            description: "What differs from the reference, in a few words. Empty when nothing does.",
+          },
+        },
+      },
+    },
+    other_problems: {
+      type: "string",
+      description:
+        "Problems not tied to one item: duplicated pieces, unrequested pieces, distorted bodies, captions. Empty when none.",
+    },
+    score: {
+      type: "integer",
+      description: "Overall quality from 1 (unusable) to 10 (every item right, clean picture).",
+    },
+    verdict: { type: "string", enum: ["pass", "fail"] },
+    fix_instructions: {
+      type: "string",
+      description: "When the verdict is fail: direct instructions for the image model's next attempt. Empty on pass.",
+    },
+  },
+};
 
 const SYSTEM = `You check pictures for an outfit-preview app. A person supplies photos of clothing items they own or might buy, and an image model produces one picture showing those items together as an outfit. The person uses that picture to judge whether these exact pieces work together, so a picture that quietly swaps a print, shifts a color or drops an item misleads them, and it does so more than an obviously broken picture would.
 
@@ -54,12 +72,17 @@ function canRead(image) {
   return READABLE.has(image.mimeType) && image.data.length <= MAX_BASE64_LENGTH;
 }
 
+// The SDK is a large file, so it is fetched only when a check actually runs.
+let sdkPromise;
+const loadSdk = () => (sdkPromise ??= import("../vendor/anthropic-sdk.js"));
+
 /**
  * @param {object} options
- * @param {string} options.model
- * @param {Anthropic} [options.client]  injected in tests
+ * @param {string} options.apiKey   the person's own Anthropic key
+ * @param {string} [options.model]
+ * @param {object} [options.client] injected in tests
  */
-export function createCritic({ model, client = new Anthropic() }) {
+export function createCritic({ apiKey, model = DEFAULT_CRITIC_MODEL, client }) {
   return {
     model,
     /**
@@ -71,10 +94,20 @@ export function createCritic({ model, client = new Anthropic() }) {
       if (!canRead(generated)) {
         return { status: "skipped", reason: "The picture is in a format the check can't read." };
       }
-      const readable = items.filter((item) => canRead(item));
-      if (readable.length !== items.length) {
+      if (!items.every(canRead)) {
         return { status: "skipped", reason: "An item picture is in a format the check can't read." };
       }
+
+      let sdk;
+      try {
+        sdk = await loadSdk();
+      } catch {
+        return { status: "skipped", reason: "The check couldn't be loaded." };
+      }
+      const { Anthropic, betaJSONSchemaOutputFormat } = sdk;
+      // The key belongs to the person using the page and never leaves their
+      // browser except to Anthropic, which is what this flag acknowledges.
+      client ??= new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 
       const content = [];
       items.forEach((item, i) => {
@@ -96,7 +129,7 @@ export function createCritic({ model, client = new Anthropic() }) {
           max_tokens: 16000,
           system: SYSTEM,
           messages: [{ role: "user", content }],
-          output_config: { effort: "medium", format: betaZodOutputFormat(ReviewSchema) },
+          output_config: { effort: "medium", format: betaJSONSchemaOutputFormat(REVIEW_SCHEMA) },
           // If the model declines for policy reasons, let the API retry on its
           // default fallback model instead of losing the check.
           betas: ["server-side-fallback-2026-07-01"],
@@ -119,10 +152,13 @@ export function createCritic({ model, client = new Anthropic() }) {
         };
       } catch (error) {
         if (error instanceof Anthropic.AuthenticationError) {
-          return { status: "skipped", reason: "The check's API key was rejected." };
+          return { status: "skipped", reason: "Anthropic rejected the API key." };
         }
         if (error instanceof Anthropic.RateLimitError) {
           return { status: "skipped", reason: "The check is rate limited right now." };
+        }
+        if (error instanceof Anthropic.APIConnectionError) {
+          return { status: "skipped", reason: "The check couldn't reach Anthropic." };
         }
         if (error instanceof Anthropic.APIError) {
           return { status: "skipped", reason: `The check failed (API error ${error.status ?? "unknown"}).` };
