@@ -71,14 +71,7 @@
       "so_far": "WO-01 found the app uses one seed for everything, so the same pieces gave the same file. The page now sends a seed of its own with each request. WO-02 confirms two requests give two pictures."
     }
   ],
-  "in_flight": [
-    {
-      "order": "WO-02",
-      "with": "the worker on the owner's computer",
-      "sent": "2026-11-26",
-      "report": "docs/reports/WO-02.md on the branch gpu-findings"
-    }
-  ],
+  "in_flight": [],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. A line saying the app is between files would help; it can only be confirmed during a real download, so it waits for the next one.",
     "A shorter instruction for local models: they added jewellery and lost odd shapes despite the instruction saying otherwise. Whether fewer words are followed better is a question for a work order after WO-02."
