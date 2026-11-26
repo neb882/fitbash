@@ -50,7 +50,7 @@ For the **Mannequin** and **On a model** looks, more choices appear under the lo
 - **Build:** *Any*, *Slim*, *Average* or *Plus-size*.
 - **Setting** (on a model only): *Plain studio*, *City street* or *Outdoors*. The plain studio is the easiest to judge pieces against.
 
-The page remembers these, the look and the "add plain basics" tick for your next visit. While a piece has no name, a tip under the pieces suggests typing one: a name helps the model keep an unusual piece right.
+The page remembers these, the look and the "add plain basics" tick for your next visit. While a piece has no name, a tip under the pieces suggests typing one: a name helps the model keep an unusual piece right. With a model on your own computer the tips are firmer, because it needs them more: name every piece, describe anything unusual in Notes, and prefer "On a model" to a flat lay.
 
 Checked on Google's model (2026-11-26), eight pictures: a woman's and a man's mannequin, a woman and a man as the model, a plus-size woman on a city street, a slim man outdoors, a plus-size mannequin and a plus-size woman in the studio. Each came out as asked, with the pieces, print and lettering kept.
 
@@ -72,6 +72,7 @@ Things worth knowing:
 - **A one-piece outfit is the fragile case on a 12 GB card with the standard model.** The app puts the whole model on the card at once for it, and with the computer simply in use that failed 5 requests in 8. For that model on a 12 to 16 GB card Setup's line therefore carries one option more (`--max-vram 8`), which made it work 5 times in 5 with a gigabyte of the card held by another program, at the same speed. The larger model does not have this fault. Closing games and other programs that use the card still helps on any card.
 - **Making the same outfit again gives a new picture.** The app would otherwise repeat the same one exactly, so the page asks for a different one each time.
 - **Local models are less exact** than the paid services, most of all on prints and lettering. The quality check below still works with a local model, and still costs its few cents.
+- **Local models need telling.** Measured on a 12 GB card (2026-11-26, 19 pictures): an unusual piece with no name was swapped for a plain one three times in three; named "oversized clown shoes" it was drawn, though smaller than the piece; with a note about its size as well it kept its size three times in three. And none of six flat lays came out clean (shoes or trousers nobody supplied, pieces lying on each other), where the same pieces on a model were kept in thirteen pictures of thirteen. The page says both when a local model is chosen.
 - Any app that offers the same interface works: put its address under **Advanced** in Setup (for example `http://127.0.0.1:1234/v1` for stable-diffusion.cpp's server, started with this site in its `--cors-origins`).
 
 This path was written from Lemonade's documentation and tested against a stand-in for the app; since 2026-11-25 it has also been measured on the real app by a session on the owner's computer (Windows, an NVIDIA card with 12 GB; `docs/reports/WO-01.md` has every number). What that showed:

@@ -35,6 +35,7 @@ const { values: options } = parseArgs({
     build: { type: "string", default: "" }, // slim | average | plus, for the same two looks
     place: { type: "string", default: "" }, // street | outdoors, for the on-a-model look
     notes: { type: "string", default: "" },
+    "no-basics": { type: "boolean", default: false }, // untick "Add plain basics for anything missing"
     site: { type: "string" }, // default: this checkout, served locally
     out: { type: "string", default: path.join(here, "out") },
     "max-pictures": { type: "string", default: "8" },
@@ -196,6 +197,7 @@ try {
         if (options[name] && (await choice.count())) await choice.check({ force: true });
       }
       await page.fill("#notes", options.notes);
+      await page.setChecked("#fill", !options["no-basics"]);
 
       const started = Date.now();
       await page.click("#generate");

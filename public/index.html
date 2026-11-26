@@ -263,9 +263,7 @@
           </form>
         </div>
         <p class="muted tip">Screenshots and photos of clothes you own work too.</p>
-        <p id="name-hint" class="muted tip" hidden>
-          Tip: type what each piece is in the box under its picture. A name helps keep an unusual piece right.
-        </p>
+        <p id="name-hint" class="muted tip" hidden></p>
         <p id="add-status" class="status" role="status"></p>
 
         <div id="picker" class="picker" hidden>
@@ -284,6 +282,11 @@
           <div id="styles" class="segments"></div>
         </fieldset>
 
+        <p id="look-tip" class="muted tip look-tip" hidden>
+          On your own computer, “On a model” keeps your pieces best. A flat lay made there often has pieces lying
+          on each other, or shoes and trousers nobody added.
+        </p>
+
         <div id="look-choices"></div>
 
         <label class="check">
@@ -293,6 +296,10 @@
 
         <label for="notes" class="field-label">Notes <span class="muted">(optional)</span></label>
         <textarea id="notes" rows="2" maxlength="500" placeholder="Tuck the shirt in, sleeves rolled, autumn colors…"></textarea>
+        <p id="notes-tip" class="muted tip" hidden>
+          On your own computer, describe anything unusual here as well, for example “The shoes are oversized clown
+          shoes, about twice as long as ordinary shoes.” It keeps an odd shape far better.
+        </p>
 
         <div class="go-row">
           <button id="generate" type="button" class="primary" disabled>Make the outfit</button>

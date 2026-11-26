@@ -1622,3 +1622,33 @@ test("a browser without a share sheet offers saving only", options, async (t) =>
   await untilText(page, "#progress", "Your outfit is ready.");
   assert.deepEqual(await cards(page), ["Save picture"]);
 });
+
+test("with a model on this computer, the page says where it needs help: names, a note for odd shapes, and not a flat lay", options, async (t) => {
+  const { page } = await open(t, { services: {} });
+  await addFiles(page, TEE);
+  // A paid service: the gentle tip about names, and nothing more.
+  assert.match(await text(page, "#name-hint"), /^Tip: type what each piece is/);
+  assert.equal(await page.isHidden("#notes-tip"), true);
+  assert.equal(await page.isHidden("#look-tip"), true);
+
+  await page.click('#providers input[value="local"]', { force: true });
+  assert.match(await text(page, "#name-hint"), /what is unusual about it.*a piece with no name is often swapped for a plain one/s);
+  assert.equal(await page.isVisible("#notes-tip"), true);
+  assert.match(await text(page, "#notes-tip"), /describe anything unusual here/);
+  // The flat lay is the look a local model does worst, so it is said while that look is chosen.
+  assert.equal(await page.isVisible("#look-tip"), true);
+  assert.match(await text(page, "#look-tip"), /“On a model” keeps your pieces best/);
+  await page.check('input[name="style"][value="model"]', { force: true });
+  assert.equal(await page.isHidden("#look-tip"), true);
+  assert.equal(await page.isVisible("#notes-tip"), true);
+  await page.check('input[name="style"][value="flatlay"]', { force: true });
+  assert.equal(await page.isVisible("#look-tip"), true);
+
+  // A named piece needs no tip about names, on either.
+  await page.locator(".item input").fill("frog tee");
+  assert.equal(await page.isHidden("#name-hint"), true);
+
+  await page.click('#providers input[value="gemini"]', { force: true });
+  assert.equal(await page.isHidden("#notes-tip"), true);
+  assert.equal(await page.isHidden("#look-tip"), true);
+});

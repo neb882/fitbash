@@ -90,35 +90,37 @@
       "orders": [
         "WO-05"
       ],
-      "rounds": 0,
-      "status": "open",
-      "so_far": "Both local models made the oversized clown shoes ordinary-sized in every picture they are in, across WO-01 to WO-04, with the instruction's sentence about unusual shapes in place. On Google's model that sentence fixed it and a name helped."
+      "rounds": 1,
+      "status": "closed",
+      "outcome": "WO-05 measured it on the published site: a name and a note both change what the local models draw, and the note most. On the larger model the unnamed clown shoes were swapped for plain shoes in 3 pictures of 3; named 'oversized clown shoes' they were drawn as clown shoes, bigger than ordinary but short of the piece, in 3 of 3; with a note about their size as well they were oversized as in the piece in 3 of 3. The standard model went the same way, weaker (with the note, 1 of 2 oversized). So it is not the models' limit, and the page now says so where it matters: with a local model the tip under the pieces asks for a name and what is unusual, and warns that an unnamed piece is often swapped for a plain one, and a tip under Notes asks for anything unusual to be described there. Not separated: whether the word 'oversized' in the name or the instruction changes since WO-04 did the first part. The note brought small side effects (a band at the hems once, jewellery once)."
     },
     {
       "id": "G9",
       "name": "The new flat lay wording on a local model",
-      "decides": "Whether the flat lay sentence rewritten for Google's model (bare background around every piece, front side up, unfolded) also gives a clean flat lay on a local model",
+      "decides": "Whether a local model can give a clean flat lay: with the sentence about adding missing basics left out, with a note about gaps, or not at all",
       "orders": [
-        "WO-05"
+        "WO-05",
+        "WO-06"
       ],
-      "rounds": 0,
+      "rounds": 1,
       "status": "open",
-      "so_far": "No flat lay has been made on a local model yet: every worker run so far used the look 'on a model'."
+      "so_far": "WO-05: 0 clean flat lays in 6 across both local models, with the sentence rewritten for Google's model in place. Something nobody supplied in 6 of 6 (extra shoes in five, plain grey trousers in two), one piece lying on another in 5 of 6, a supplied piece lost in 2; front side up, unfolded and a plain background held in 6 of 6. The same pieces 'on a model' were kept in 13 of 13. The page now shows a tip with a flat lay on a local model: 'On a model' keeps the pieces best. WO-06 tries the flat lay without the basics sentence (the worker's guess at what draws the extras), then with a note about gaps, and checks the basics sentence still works when a piece really is missing."
     }
   ],
   "in_flight": [
     {
-      "order": "WO-05",
+      "order": "WO-06",
       "with": "the worker on the owner's computer",
       "sent": "2026-11-26",
-      "report": "docs/reports/WO-05.md on the branch gpu-findings"
+      "report": "docs/reports/WO-06.md on the branch gpu-findings"
     }
   ],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
     "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
     "--max-vram for cards that were not measured: an 11 GB card is likely the most fragile of all, and nothing is known for 8, 16 or 24 GB. Needs other hardware, which the worker does not have.",
-    "The Claude check has never run with a real key. It needs the owner's Anthropic key through the secure form; the plan is to run it against real pictures with known faults (shoes shrunk, pieces folded, a cropped head) and against good ones."
+    "The Claude check has never run with a real key. The secure form cannot hold an Anthropic key, so it needs the owner to add one as an environment variable (FITBASH_TEST_CLAUDE_KEY) in the fitbash environment's settings; a new session then sees it. The owner has said a new session is fine. The plan is to run the check against real pictures with known faults (shoes shrunk, pieces folded, a cropped head) and against good ones.",
+    "The standard local model added a wristwatch in 2 of its 4 'on a model' pictures in WO-05, against the instruction's 'no hats, bags, watches, jewellery'. Small beside a lost piece; look at it if a later order makes pictures on a model anyway."
   ],
   "dead_ends": [
     "--offload-to-cpu on its own as the memory step: on a 12 GB card it failed every outfit of two to four pieces, exactly as no options did (WO-01).",

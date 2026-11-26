@@ -60,6 +60,8 @@ const ui = {
   styles: $("styles"),
   lookChoices: $("look-choices"),
   nameHint: $("name-hint"),
+  lookTip: $("look-tip"),
+  notesTip: $("notes-tip"),
   fill: $("fill"),
   notes: $("notes"),
   generate: $("generate"),
@@ -243,6 +245,7 @@ function renderSettings() {
   ui.settingsSummary.textContent = ready()
     ? `${chosen.label} connected${checkIsOn() ? ", double-check on" : ""}`
     : "Do this once to get real outfit pictures. It takes a few minutes.";
+  renderLocalTips();
   ui.setup.textContent = ready()
     ? checkIsOn()
       ? "Each picture is checked against your pieces and redone once if it's off."
@@ -754,9 +757,27 @@ function renderItems() {
   updateGenerate();
 }
 
-/** A name helps the picture model keep a piece right, most of all an odd one: say so while any piece has none. */
+/**
+ * A name helps the picture model keep a piece right, most of all an odd one: say so while any piece has none.
+ * A model on the visitor's own computer needs it more. Measured on one (docs/reports/WO-05.md): an unusual
+ * piece with no name was swapped for a plain one in 3 pictures of 3, and drawn once it had a name.
+ */
 function renderNameHint() {
   ui.nameHint.hidden = !state.items.some((item) => !item.label?.trim());
+  ui.nameHint.textContent = isLocal()
+    ? "Type what each piece is in the box under its picture, and what is unusual about it (“oversized clown shoes”). On your own computer, a piece with no name is often swapped for a plain one."
+    : "Tip: type what each piece is in the box under its picture. A name helps keep an unusual piece right.";
+}
+
+/**
+ * What a model on the visitor's own computer does worse, said where the choice is made. The same report:
+ * a note about an odd shape kept it in 3 pictures of 3 where a name alone did not, and none of 6 flat lays
+ * came out clean where 13 of 13 pictures on a model kept the pieces.
+ */
+function renderLocalTips() {
+  ui.notesTip.hidden = !isLocal();
+  ui.lookTip.hidden = !(isLocal() && chosenStyle() === "flatlay");
+  renderNameHint();
 }
 
 /** The three pieces of the example at the top of a first visit, to try the page without hunting for pictures. */
@@ -1147,6 +1168,7 @@ function setChoice(name, id) {
 /** Offer each choice only for the looks it has something to say about. */
 function renderLookChoices() {
   for (const choice of CHOICES) $(`${choice.name}-choice`).hidden = !choiceApplies(choice, chosenStyle());
+  renderLocalTips();
 }
 
 /** Keep the outfit just made. The picture is already on the page, so a failure here costs nothing. */

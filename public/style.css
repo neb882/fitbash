@@ -1037,6 +1037,10 @@ kbd {
   margin: 10px 0 0;
 }
 
+.look-tip {
+  margin: -6px 0 14px;
+}
+
 .picker {
   margin-top: 14px;
   padding-top: 16px;
