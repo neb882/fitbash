@@ -97,8 +97,68 @@ test("a model larger than the graphics card gets one line to paste, unless the a
   }
   assert.match(localMemoryCommand({ ...model, id: "user.My-Model_2" }), /^lemonade load user\.My-Model_2 /);
 
-  // Cards with less memory than the standard model's files are the ones that need it.
-  assert.deepEqual(Object.keys(LOCAL_TIERS).filter((tier) => LOCAL_TIERS[tier].tight), ["small", "medium"]);
+});
+
+test("the step counts as done when the saved options hold the one the engine needs", async () => {
+  // The model's entry in GET /v1/models?show_all=true as the real app answered it (2026-11-25,
+  // docs/reports/WO-01.md), after the owner ran the memory step with --save-options.
+  const real = {
+    checkpoint: "black-forest-labs/FLUX.2-klein-4B:flux-2-klein-4b.safetensors",
+    downloaded: true,
+    id: "Flux-2-Klein-4B",
+    labels: ["image", "edit"],
+    object: "model",
+    owned_by: "lemonade",
+    recipe: "sd-cpp",
+    recipe_options: { cfg_scale: 1, height: 1024, sdcpp_args: "--diffusion-fa --offload-to-cpu", soft_pixel_cap: 2097152, steps: 4, width: 1024 },
+    size: 15.0,
+    suggested: true,
+  };
+  // The larger model, which nobody had saved options for: the key is simply not there.
+  const untouched = { ...real, id: "Flux-2-Klein-9B-GGUF", size: 19.0, recipe_options: { cfg_scale: 1, height: 256, soft_pixel_cap: 2097152, steps: 4, width: 256 } };
+  const withOptions = (id, sdcpp_args) => ({ ...real, id, recipe_options: { ...real.recipe_options, sdcpp_args } });
+  const listed = recorder(() =>
+    json(200, {
+      object: "list",
+      data: [
+        real,
+        untouched,
+        withOptions("fa-alone", "--diffusion-fa"),
+        withOptions("offload-alone", "--offload-to-cpu"),
+        withOptions("fa-last", "--vae-tiling --diffusion-fa"),
+        withOptions("lookalike", "--diffusion-fast"),
+        withOptions("empty", ""),
+      ],
+    }),
+  );
+  const { models } = await findLocalModels(undefined, listed);
+  assert.deepEqual(models.map((model) => [model.id, model.memorySaving]), [
+    ["Flux-2-Klein-4B", true],
+    ["Flux-2-Klein-9B-GGUF", false],
+    // Measured: --diffusion-fa is the option that makes outfits of several pieces work; the other alone fixed nothing.
+    ["fa-alone", true],
+    ["offload-alone", false],
+    ["fa-last", true],
+    ["lookalike", false],
+    ["empty", false],
+  ]);
+  assert.deepEqual(models[0], { id: "Flux-2-Klein-4B", sizeGb: 15.0, downloaded: true, recipe: "sd-cpp", memorySaving: true });
+  assert.equal(localMemoryCommand(models[0]), null);
+  assert.match(localMemoryCommand(models[1]), /^lemonade load Flux-2-Klein-9B-GGUF --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options$/);
+  assert.match(localMemoryCommand(models[3]), /^lemonade load /, "saving the option that fixes nothing does not put the step away");
+});
+
+test("each picture is asked for with a seed of its own", async () => {
+  // Seen with the real app: it uses one seed for everything, so the same outfit made again was the same file.
+  const rolls = [0.25, 0.75];
+  const { fetchImpl, calls } = recorder(() => json(200, { data: [{ b64_json: PNG }] }));
+  const provider = createLocalProvider({ model: "m", fetchImpl, random: () => rolls.shift() });
+  await provider.generate({ prompt: "p", images, aspectRatio: "3:4" });
+  await provider.generate({ prompt: "p", images, aspectRatio: "3:4" });
+  assert.deepEqual(calls.map((call) => call.init.body.get("seed")), ["536870912", "1610612736"]);
+  const real = recorder(() => json(200, { data: [{ b64_json: PNG }] }));
+  await createLocalProvider({ model: "m", fetchImpl: real.fetchImpl }).generate({ prompt: "p", images, aspectRatio: "3:4" });
+  assert.match(real.calls[0].init.body.get("seed"), /^\d{1,10}$/);
 });
 
 test("a model that combines only four pieces is not sent a fifth", async () => {
@@ -135,8 +195,8 @@ test("the local app's failures are explained with what to do", async () => {
   await fails(() => { throw new DOMException("timed out", "TimeoutError"); }, /took too long/);
   await fails(() => json(403, {}), /doesn't accept this website yet/);
   await fails(() => json(503, { error: "No current model is configured", code: "model_not_loaded" }), /model ready.*It said: No current model/);
-  await fails(() => json(500, { error: { message: "something broke" } }), /fewer pieces.*too large for this computer.*It said: something broke/);
-  await fails(() => json(500, { error: { message: "CUDA error: out of memory" } }), /ran out of memory.*fewer pieces.*It said: CUDA error/);
+  await fails(() => json(500, { error: { message: "something broke" } }), /^The app on your computer couldn't make that picture\. Most often the graphics card ran out of room: close games.*It said: something broke/);
+  await fails(() => json(500, { error: { message: "CUDA error: out of memory" } }), /^Your graphics card ran out of room.*Close games and other programs that use the card.*It said: CUDA error/);
 
   // Seen with the real app (2026-11-25, a 12 GB NVIDIA card, three and five pieces): its own message is only
   // "sd-server request failed", and the picture engine's words travel in the details.
@@ -146,10 +206,10 @@ test("the local app's failures are explained with what to do", async () => {
     });
   await fails(
     () => wrapped({ error: "generate_image returned no results" }),
-    /^The app on your computer couldn't make that picture\. Try again with fewer pieces.*\(It said: generate_image returned no results\)$/,
+    /^The app on your computer couldn't make that picture\. Most often the graphics card ran out of room: close games and other programs that use the card, then try again\. \(It said: generate_image returned no results\)$/,
   );
   // The other shapes the details can take, from Lemonade's and the engine's source.
-  await fails(() => wrapped({ error: "failed to allocate 9216 MiB" }), /ran out of memory.*It said: failed to allocate 9216 MiB\)$/);
+  await fails(() => wrapped({ error: "failed to allocate 9216 MiB" }), /ran out of room.*It said: failed to allocate 9216 MiB\)$/);
   await fails(() => wrapped({ error: "server_error", message: "bad tensor shape" }), /It said: bad tensor shape\)$/);
   await fails(() => wrapped("plain words from the engine"), /It said: plain words from the engine\)$/);
   // With nothing more in the details, Lemonade's own message is still better than none.

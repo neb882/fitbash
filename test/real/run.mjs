@@ -153,7 +153,12 @@ try {
     await page.waitForFunction(() => /works|accepted|check the key/i.test(document.querySelector("#provider-key-status").textContent), null, { timeout: 40_000 }).catch(() => {});
     setup = await page.textContent("#provider-key-status");
   }
-  if (options.model) {
+  if (options.model && options.service === "local") {
+    // On this computer the model is picked from the list Setup shows; the box under Advanced is hidden.
+    await page.selectOption("#local-model", options.model);
+    await page.waitForTimeout(500);
+    setup = await page.textContent("#local-status");
+  } else if (options.model) {
     for (const summary of await page.locator(".sub summary").all()) if (/Advanced/.test(await summary.textContent())) await summary.click();
     await page.fill("#provider-model", options.model);
   }

@@ -26,17 +26,14 @@ const GENERATE_TIMEOUT_MS = 20 * 60_000;
  * models and is licensed for non-commercial use. README.md, "Which models, and why".
  */
 export const LOCAL_TIERS = {
-  // `tight`: the card has less memory than the standard model's files take (about 16 GB),
-  // so the app needs the extra step from localMemoryCommand() before it can make a picture.
   small: {
     model: "Flux-2-Klein-4B",
-    tight: true,
-    advice: "The standard model may just fit. Expect it to be slow, and close other programs that use the graphics card. Setup shows one extra step for it after you connect.",
+    advice: "The standard model may just fit. Expect it to be slow, and close other programs that use the graphics card.",
   },
   medium: {
     model: "Flux-2-Klein-4B",
-    tight: true,
-    advice: "A good fit for the standard model, with one extra step that Setup shows after you connect.",
+    // Measured on a 12 GB card: a picture failed when other programs held about 2 GB of it.
+    advice: "A good fit for the standard model. Close games and other programs that use the graphics card while it makes a picture.",
   },
   large: { model: "Flux-2-Klein-9B-GGUF", advice: "Enough for the larger model, which keeps details better." },
   apple: {
@@ -49,16 +46,24 @@ export const LOCAL_TIERS = {
   },
 };
 
-// The engine options that keep a model's weights in ordinary memory and move them to the
-// graphics card as they are needed. Lemonade ships the same pair for its larger picture models.
+// What Lemonade's picture engine has to be started with, measured on the real app
+// (docs/reports/WO-01.md, a 12 GB NVIDIA card):
+//
+//   --diffusion-fa     the one that matters. Without it the engine's working room grows with
+//                      every piece: 16.7 GB of card memory for two pieces, 41.7 GB for four,
+//                      which no card has. Every outfit of two to four pieces failed without it
+//                      (14 of 14) and was made with it (20 of 20).
+//   --offload-to-cpu   keeps the model in ordinary memory between pictures. Alone it fixed
+//                      nothing; beside the other it was a little faster on several pieces and
+//                      left the card about 3 GB freer.
+//
+// Lemonade adds --diffusion-fa itself on its Vulkan engine and not on the NVIDIA one.
 const MEMORY_OPTIONS = "--diffusion-fa --offload-to-cpu";
+const NEEDED_OPTION = /(^|\s)--diffusion-fa(\s|$)/;
 
 /**
- * The line to paste into a terminal so the app can run a model that is larger than the
- * graphics card's memory, or null when it doesn't apply to this model.
- *
- * Seen with the real app (2026-11-25, a 12 GB NVIDIA card, Flux-2-Klein-4B at about 16 GB):
- * every picture failed with "generate_image returned no results" until this was run once.
+ * The line to paste into a terminal so the app's picture engine can make an outfit of more
+ * than one piece, or null when it doesn't apply to this model or has been done.
  */
 export function localMemoryCommand(model) {
   if (model?.recipe !== "sd-cpp" || model.memorySaving) return null;
@@ -97,7 +102,7 @@ async function errorMessage(res) {
   }
 }
 
-export function createLocalProvider({ baseUrl, model, fetchImpl = fetch }) {
+export function createLocalProvider({ baseUrl, model, fetchImpl = fetch, random = Math.random }) {
   const base = clean(baseUrl);
   return {
     name: "local",
@@ -115,6 +120,9 @@ export function createLocalProvider({ baseUrl, model, fetchImpl = fetch }) {
       form.set("size", SIZES[aspectRatio] ?? SIZES["1:1"]);
       form.set("n", "1");
       form.set("response_format", "b64_json");
+      // Seen with the real app: left alone it uses the same seed every time, so making the same
+      // outfit again returned the very same picture, byte for byte.
+      form.set("seed", String(Math.floor(random() * 2 ** 31)));
       images.forEach((img, i) => {
         const blob = new Blob([base64ToBytes(img.data)], { type: img.mimeType });
         form.append("image[]", blob, `item-${i + 1}.${EXTENSIONS[img.mimeType] ?? "png"}`);
@@ -142,8 +150,11 @@ export function createLocalProvider({ baseUrl, model, fetchImpl = fetch }) {
             : res.status === 404 || res.status === 503
               ? "The app on your computer doesn't have that model ready. Press Connect in Setup and check the model."
               : /memory|alloc/i.test(detail)
-                ? "Your computer ran out of memory for this picture. Close other programs that use the graphics card and try again with fewer pieces. If it still fails, pick a smaller model in Setup."
-                : "The app on your computer couldn't make that picture. Try again with fewer pieces; if that fails too, the model may be too large for this computer.";
+                ? "Your graphics card ran out of room for this picture. Close games and other programs that use the card, then try again. If it still fails, pick a smaller model in Setup."
+                : // Seen with the real app: its engine says only "generate_image returned no results", and each
+                  // time the cause was the card's memory. Fewer pieces is not the cure: with the card nearly
+                  // full, one piece was the outfit that failed.
+                  "The app on your computer couldn't make that picture. Most often the graphics card ran out of room: close games and other programs that use the card, then try again.";
         throw new ProviderError(detail ? `${summary} (It said: ${detail.slice(0, 240)})` : summary, {
           status: res.status,
           detail,
@@ -164,7 +175,7 @@ export function createLocalProvider({ baseUrl, model, fetchImpl = fetch }) {
  * Resolves to one of:
  *   { status: "connected", models: [{ id, sizeGb, downloaded, recipe, memorySaving }] }
  *     recipe        which engine inside the app runs the model ("sd-cpp"), or null when it doesn't say
- *     memorySaving  the app already starts this model with the options of localMemoryCommand()
+ *     memorySaving  the app already starts this model with the option it needs (localMemoryCommand())
  *   { status: "refused" }      the app is running but doesn't accept requests from this website
  *   { status: "unreachable" }  nothing answered: not installed, not open, or the browser blocked it
  */
@@ -205,7 +216,8 @@ export async function findLocalModels(baseUrl, { fetchImpl = fetch } = {}) {
       sizeGb: typeof entry.size === "number" ? entry.size : null,
       downloaded: entry.downloaded !== false,
       recipe: typeof entry.recipe === "string" ? entry.recipe : null,
-      memorySaving: /--offload-to-cpu\b/.test(String(entry.recipe_options?.sdcpp_args ?? "")),
+      // The saved options, exactly as they were typed; a model nobody saved any for has no such key.
+      memorySaving: NEEDED_OPTION.test(String(entry.recipe_options?.sdcpp_args ?? "")),
     }));
   return { status: "connected", models };
 }

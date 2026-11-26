@@ -313,27 +313,19 @@ function renderLocal() {
 }
 
 /**
- * The extra step for a model larger than the graphics card's memory: { command, why },
- * or null when the model in use doesn't need it or already has it.
+ * The one more step the app's picture engine needs before it can make an outfit of several
+ * pieces: { command, why }, or null when the model in use isn't run by that engine or already has it.
+ * It is the same for every graphics card: what the engine asks for without it outgrows any of them.
  */
 function localMemoryStep() {
   const { local, settings } = state;
   if (local.status !== "connected") return null;
   const command = localMemoryCommand(local.models.find((model) => model.id === settings.localModel));
   if (!command) return null;
-  if (local.pictureFailed) {
-    return {
-      command,
-      why: "If pictures keep failing, the model is probably larger than your graphics card's memory. This step, done once, usually fixes it:",
-    };
-  }
-  if (LOCAL_TIERS[localTier()]?.tight) {
-    return {
-      command,
-      why: "One more step for this graphics card, done once. The model is larger than the card's memory, and without this step making a picture can fail:",
-    };
-  }
-  return null;
+  return {
+    command,
+    why: "One more step, done once. Without it the app runs out of graphics memory as soon as an outfit has two pieces or more:",
+  };
 }
 
 /** Use the model picked in the list if it is on this computer; otherwise leave Setup unfinished. */
@@ -1012,7 +1004,6 @@ async function generate() {
       error instanceof ProviderError ? error.message : "Something went wrong while making the picture. Try again in a minute.";
     // The app on this computer failed at the picture itself: Setup may have a step for that.
     if (settings.provider === "local" && error instanceof ProviderError && error.status >= 500) {
-      state.local.pictureFailed = true;
       if (state.local.status !== "connected") await connectLocal();
       renderSettings();
       if (localMemoryStep()) message += " One more step in Setup usually fixes this; it is shown there now.";

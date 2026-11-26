@@ -1,26 +1,30 @@
 {
   "updated": "2026-11-26",
-  "about": "The short state of the work between the orchestrator and the GPU worker. Read it first after any restart; docs/PIPELINE.md says how the two work. Only the orchestrator edits it. A goal is open until the worker has confirmed the outcome on real hardware, then closed, or with_owner when three rounds did not settle it.",
+  "about": "The short state of the work between the orchestrator and the GPU worker. Read it first after any restart; docs/PIPELINE.md says how the two work. Only the orchestrator edits it. A goal is open until the worker has confirmed the outcome on real hardware, then closed; it is with_owner when three rounds did not settle it or the decision is the owner's to make.",
   "goals": [
     {
       "id": "G1",
       "name": "The memory step",
       "decides": "Which line Setup shows for a graphics card smaller than the model, and for which cards",
       "orders": [
-        "WO-01"
+        "WO-01",
+        "WO-02"
       ],
-      "rounds": 0,
-      "status": "open"
+      "rounds": 1,
+      "status": "open",
+      "so_far": "WO-01: --diffusion-fa is the option the engine needs, on any card (two pieces ask for 16.7 GB of card memory without it, four for 41.7 GB); --offload-to-cpu alone fixes nothing. Setup now shows the step for every card, keeps the line with both options (the one the owner ran; a little faster on several pieces and leaves the card freer), and counts the step as done when --diffusion-fa is saved. Still open: whether one option set is safer than the other for a one-piece outfit when other programs hold part of the card. WO-02 measures that and confirms the change on the published site."
     },
     {
       "id": "G2",
       "name": "Knowing the step is done",
       "decides": "Which field of the app's model list shows the saved options, so Setup can put the step away",
       "orders": [
-        "WO-01"
+        "WO-01",
+        "WO-02"
       ],
-      "rounds": 0,
-      "status": "open"
+      "rounds": 1,
+      "status": "open",
+      "so_far": "WO-01: the saved options are in recipe_options.sdcpp_args of /v1/models?show_all=true, as the page assumed; a model nobody saved options for has no such key. The real entry is pinned in test/local.test.js. WO-02 confirms on the published site that the step shows for a model without it and goes once it is saved."
     },
     {
       "id": "G3",
@@ -30,7 +34,8 @@
         "WO-01"
       ],
       "rounds": 0,
-      "status": "open"
+      "status": "closed",
+      "outcome": "WO-01: the readout matched the app's own window at three points on a 19.3 GB download (the window counts in 1024s and labels them GB and MB/s; the page counts in decimal GB and megabits a second). Nothing in the page changed for it."
     },
     {
       "id": "G4",
@@ -40,7 +45,8 @@
         "WO-01"
       ],
       "rounds": 0,
-      "status": "open"
+      "status": "closed",
+      "outcome": "WO-01: with four pieces or fewer no piece was missing in 18 different pictures, so the cap stays at four. Exactness suffers instead (lettering redrawn by the smaller model, odd shapes made ordinary, a hat's colour shifted, jewellery added); the README now says so."
     },
     {
       "id": "G5",
@@ -50,11 +56,38 @@
         "WO-01"
       ],
       "rounds": 0,
-      "status": "open"
+      "status": "with_owner",
+      "so_far": "WO-01: Flux-2-Klein-9B-GGUF runs on a 12 GB card with --diffusion-fa, takes about one and a half times as long, kept a lettered print right where the smaller model garbled it, and kept odd shapes no better. Which model Setup suggests for a card is a default, and a change of default waits for the owner."
+    },
+    {
+      "id": "G6",
+      "name": "A new picture each time",
+      "decides": "Whether making the same outfit again on a local model gives a different picture",
+      "orders": [
+        "WO-02"
+      ],
+      "rounds": 1,
+      "status": "open",
+      "so_far": "WO-01 found the app uses one seed for everything, so the same pieces gave the same file. The page now sends a seed of its own with each request. WO-02 confirms two requests give two pictures."
     }
   ],
-  "in_flight": [],
-  "next": [],
-  "dead_ends": [],
-  "open_questions": []
+  "in_flight": [
+    {
+      "order": "WO-02",
+      "with": "the worker on the owner's computer",
+      "sent": "2026-11-26",
+      "report": "docs/reports/WO-02.md on the branch gpu-findings"
+    }
+  ],
+  "next": [
+    "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. A line saying the app is between files would help; it can only be confirmed during a real download, so it waits for the next one.",
+    "A shorter instruction for local models: they added jewellery and lost odd shapes despite the instruction saying otherwise. Whether fewer words are followed better is a question for a work order after WO-02."
+  ],
+  "dead_ends": [
+    "--offload-to-cpu on its own as the memory step: on a 12 GB card it failed every outfit of two to four pieces, exactly as no options did (WO-01).",
+    "\"Try again with fewer pieces\" as advice for a failed local picture: with the card nearly full, one piece was the outfit that failed and adding a second made it work (WO-01)."
+  ],
+  "open_questions": [
+    "G5: should Setup suggest the larger model (Flux-2-Klein-9B-GGUF) for graphics cards of 12 to 16 GB, instead of only for 20 GB or more? For: it kept lettering right where the smaller model garbled it. Against: a 19 GB download instead of 15, about one and a half times the wait, measured on one card only, and its licence is for non-commercial use."
+  ]
 }
