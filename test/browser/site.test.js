@@ -393,6 +393,8 @@ test("a pasted key is checked at once, remembered, and forgotten on request", op
   assert.equal(await text(page, "#settings-summary"), "Google Gemini connected");
 
   await page.click(".sub summary");
+  // What the check costs, as measured with a real key (about 3 cents for three pieces), not a guess.
+  assert.match(await text(page, ".sub p"), /Each check costs a few cents \(about\s+3 for an outfit of three pieces\), billed separately by Anthropic\./);
   await page.fill("#claude-key", "nope");
   await untilText(page, "#claude-key-status", "wasn't accepted");
   await page.fill("#claude-key", "GOOD-CLAUDE");

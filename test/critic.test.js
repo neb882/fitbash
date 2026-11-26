@@ -136,3 +136,17 @@ test("the browser copy of the SDK builds a real request from the check's schema"
   assert.equal(sent.body.output_config.format.type, "json_schema");
   assert.deepEqual(sent.body.output_config.format.schema.required, ["items", "other_problems", "score", "verdict", "fix_instructions"]);
 });
+
+test("the check is told the two faults a real run showed it letting through", async () => {
+  // docs/reports/WO-08.md: with a real key the check failed eight kinds of planted fault and passed two,
+  // twice each, with every field empty: jeans folded in half in a flat lay, and a head cut off at the mouth.
+  // Its instructions then listed "folds" among the differences that are fine and said nothing of the frame.
+  const client = fakeClient(() => ({ stop_reason: "end_turn", parsed_output: { ...parsed, verdict: "pass", score: 9 } }));
+  await createCritic({ model: "m", client }).review({ items, generated, fillGaps: true });
+  const { system } = client.calls[0];
+  assert.match(system, /every reference item is present once, can be seen whole,/);
+  assert.match(system, /folded over on itself so that part of its length is hidden, shortened, or cut off by the edge of the picture/);
+  assert.match(system, /a figure that is not in the frame from the top of the head to the shoes/);
+  // Creases are still fine; a fold that hides part of a piece is not, so the word that excused it is gone.
+  assert.doesNotMatch(system, /\(folds,/);
+});

@@ -28,7 +28,7 @@ const { values: options } = parseArgs({
     service: { type: "string", default: "gemini" }, // gemini | openai | openrouter | local
     model: { type: "string" }, // a model name, as typed under Advanced in Setup
     "key-env": { type: "string", default: "FITBASH_TEST_KEY" },
-    "check-key-env": { type: "string", default: "FITBASH_TEST_CLAUDE_KEY" },
+    "check-key-env": { type: "string", default: "" }, // the check is off unless a variable is named (usually FITBASH_TEST_CLAUDE_KEY): each check is the owner's money
     looks: { type: "string", default: "flatlay,model" },
     computer: { type: "string", default: "" }, // small | medium | large | apple | none: the answer to "What kind of computer is this?" (a test browser has no graphics card to recognise)
     wearer: { type: "string", default: "" }, // woman | man, for the mannequin and on-a-model looks

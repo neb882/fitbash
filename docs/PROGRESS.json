@@ -112,19 +112,20 @@
       "name": "The Claude check with a real key",
       "decides": "Whether the optional check works from the page, catches real faults and passes good pictures, and what it costs; and so whether its instructions or the page's sentence about its cost change",
       "orders": [
-        "WO-08"
+        "WO-08",
+        "WO-09"
       ],
-      "rounds": 0,
+      "rounds": 1,
       "status": "open",
-      "so_far": "Never run with a real key. The owner added an Anthropic key to the fitbash environment as the variable FITBASH_TEST_CLAUDE_KEY (2026-11-26; the secure form cannot hold a key for Anthropic's hosts). A session that was already running does not see it, so WO-08 goes to a new cloud session: one run through the page, then the check run directly on 4 good pictures and 10 with one known fault each, twice each."
+      "so_far": "WO-08 (28 checks with the owner's key, $0.91; 16 Google pictures): run from Node as the page builds it, the check answered 28 times in 28 on the default model. It passed 4 good pictures twice each, the oversized clown shoes among them, and failed 8 of 10 kinds of planted fault twice each, naming the fault every time (wrong lettering, a redrawn print, recoloured laces, recoloured jeans, a replaced piece, jeans cut to shorts, a doubled piece, odd shoes made ordinary). It passed two faults twice each with every field empty: jeans folded in half in a flat lay, and a head cut off at the mouth. A check cost about 3 cents and took 2 to 6 seconds. Changed on that: the check's instructions now fail a piece that cannot be seen whole and a figure not in frame head to shoes; the page's cost sentence says a few cents instead of 'roughly doubles'; the runner's check is off unless a variable is named. WO-09 runs the same fourteen pictures again. Still unproven: the browser's own path to Anthropic. The cloud workspace's test browser cannot reach it (a certificate error from the workspace's network); a preflight from here shows Anthropic allows the site's origin and the headers the check sends; a real browser on an ordinary network has not tried it."
     }
   ],
   "in_flight": [
     {
-      "order": "WO-08",
-      "with": "a cloud session started for it on the fitbash environment",
+      "order": "WO-09",
+      "with": "the cloud session that ran WO-08",
       "sent": "2026-11-26",
-      "report": "docs/reports/WO-08.md on the branch check-findings"
+      "report": "docs/reports/WO-09.md on the branch check-findings"
     }
   ],
   "next": [
@@ -141,7 +142,9 @@
     "--max-vram -1 (reserve a gigabyte of whatever is free): the engine works the figure out once at load and still plans one block; 2 of 5 with a gigabyte held (WO-03).",
     "--max-vram 6: it works, but every picture's last stage fails once and is redone in tiles (WO-03). 8 leaves that stage alone."
   ],
-  "open_questions": [],
+  "open_questions": [
+    "For the owner, when convenient: on the published site in your own browser, paste the Claude key under 'Optional: double-check every picture' in Setup and make one outfit. Does Setup say the key works, and does a verdict ('Matches your pieces' or 'Off in places') appear under the picture? That is the one part of the check no session here can reach."
+  ],
   "owner_priorities": [
     "2026-11-26: quality is the priority. Where faithfulness to the pieces trades against speed, download size or a few cents, choose faithfulness (CLAUDE.md, Rules)."
   ],
