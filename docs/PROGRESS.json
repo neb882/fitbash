@@ -84,14 +84,7 @@
       "outcome": "WO-03 confirmed it on the published site and in the checkout: with the instruction naming the added pieces, 28 one-piece pictures in 28 (24 from the standard model, 4 from the larger) showed whole, plain, full-length trousers and plain shoes, against 4 malformed in 11 before."
     }
   ],
-  "in_flight": [
-    {
-      "order": "WO-04",
-      "with": "the worker on the owner's computer",
-      "sent": "2026-11-26",
-      "report": "docs/reports/WO-04.md on the branch gpu-findings"
-    }
-  ],
+  "in_flight": [],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
     "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
