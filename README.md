@@ -160,6 +160,7 @@ public/                      the whole app; this folder is what GitHub Pages ser
   sw.js                      service worker: always-fresh files, an offline copy, and the site's version
   vendor/anthropic-sdk.js    browser build of the official Anthropic SDK (generated, see below)
   fonts/                     the heading typeface, Instrument Serif, served from this site (SIL Open Font License, in OFL.txt)
+  examples/                  the example on a first visit: three pieces and the outfit this page made from them (all four are generated pictures)
 server.js                    optional local server: serves public/ and adds link lookup
 src/extract.js               product link to candidate pictures
 src/safe-fetch.js            fetching pasted links without reaching private networks

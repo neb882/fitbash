@@ -64,7 +64,9 @@
 
 body {
   margin: 0;
-  background: var(--paper);
+  /* A faint grain, so the page reads as paper and not as a flat fill. */
+  background: var(--paper)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.42 0 0 0 0 0.36 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23g)'/%3E%3C/svg%3E");
   color: var(--ink);
   font: 16px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -181,6 +183,156 @@ main {
   padding-bottom: 40px;
   display: grid;
   gap: 18px;
+}
+
+/* ---- a first visit: three pictures in, one outfit out ---- */
+
+.example {
+  display: grid;
+  gap: 16px;
+  padding: 6px 0 14px;
+}
+
+.example h2 {
+  margin: 0;
+  font: 400 clamp(1.9rem, 5.2vw, 2.7rem) / 1.05 var(--serif);
+  letter-spacing: -0.015em;
+}
+
+.example h2 em {
+  color: var(--accent);
+}
+
+/* On a narrow screen the pictures come before the words about them. */
+.example-words {
+  order: 1;
+}
+
+.example p {
+  margin: 0 0 14px;
+  max-width: 46ch;
+  color: var(--muted);
+}
+
+.example-figure {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: 4px;
+}
+
+.example-pieces {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+/* Each piece is a small print with its name written under it, set down a little askew. */
+.example-pieces li,
+.plate {
+  margin: 0;
+  padding: 6px 6px 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+}
+
+.example-pieces li {
+  width: 92px;
+  transform: rotate(-2.5deg);
+}
+
+.example-pieces li:nth-child(2) {
+  transform: rotate(2deg) translateX(8px);
+}
+
+.example-pieces li:nth-child(3) {
+  transform: rotate(-1deg);
+}
+
+.example-pieces img,
+.plate img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.example-pieces span,
+.plate figcaption {
+  display: block;
+  padding: 5px 2px 6px;
+  text-align: center;
+  font: italic 0.95rem/1.2 var(--serif);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.plate figcaption:empty {
+  padding: 3px;
+}
+
+.example-arrow {
+  width: 54px;
+  height: 34px;
+  margin: 0 2px 0 8px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.example-outfit {
+  max-width: 250px;
+  transform: rotate(1.2deg);
+}
+
+@media (min-width: 760px) {
+  /* Wide enough for the words to sit beside the pictures. */
+  .example {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    grid-template-rows: 1fr auto 1fr;
+    gap: 12px 40px;
+    padding: 4px 8px 22px;
+  }
+
+  .example h2 {
+    align-self: end;
+  }
+
+  .example-words {
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .example-figure {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+
+  .example-figure {
+    justify-content: end;
+  }
+
+  .example-pieces li {
+    width: 104px;
+  }
+
+  .example-arrow {
+    width: 64px;
+    height: 40px;
+    margin: 0 8px 0 16px;
+  }
+
+  .example-outfit {
+    max-width: 264px;
+  }
 }
 
 .workspace {
@@ -325,6 +477,10 @@ button.primary::after {
   transition: transform 0.15s;
 }
 
+button.primary.busy::after {
+  content: none;
+}
+
 button.primary:hover:not(:disabled)::after {
   transform: translateX(4px);
 }
@@ -427,6 +583,32 @@ a {
   border-radius: 12px;
   font-size: 0.95rem;
   transition: background-color 0.15s, color 0.15s;
+}
+
+/* The look and what goes with it: rows of equal parts, so the rows line up and nothing is left over on a line of its own. */
+#styles,
+#look-choices .segments {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  max-width: 460px;
+}
+
+#styles span,
+#look-choices .segments span {
+  height: 100%;
+  padding: 9px 6px;
+  text-align: center;
+}
+
+#look-choices .segmented {
+  margin-bottom: 12px;
+}
+
+/* Where pictures are made: one choice per line on a narrow screen, with its note beside it. */
+#providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
 }
 
 .segments small {
@@ -911,6 +1093,21 @@ kbd {
   margin-top: 0;
 }
 
+.progress-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* How long the picture has been in the making. */
+.elapsed {
+  flex: none;
+  font: italic 1.15rem/1 var(--serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
 /* Before the first picture: an empty frame the size the picture will be. */
 .placeholder {
   margin-top: 14px;
@@ -951,6 +1148,18 @@ kbd {
 
 .stage[aria-busy="true"] .placeholder svg {
   stroke: var(--accent);
+  transform-origin: 50% 18%;
+  animation: swing 2.6s ease-in-out infinite;
+}
+
+@keyframes swing {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
 }
 
 .stage[aria-busy="true"] .status::after {
@@ -993,32 +1202,48 @@ kbd {
   margin-top: 14px;
 }
 
-.attempt img {
-  display: block;
-  width: 100%;
-  max-height: 78vh;
-  object-fit: contain;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: #fff;
+/* The outfit as a print: a white border, its name written underneath. */
+.attempt .plate {
+  padding: 10px 10px 0;
+  border-radius: 6px;
 }
 
-.attempt.best img {
+.attempt img {
+  max-height: 78vh;
+  object-fit: contain;
+}
+
+.attempt .plate figcaption {
+  padding: 9px 4px 10px;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+
+.attempt.best .plate {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
 }
 
 .attempt .notes {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
-.attempt h3 {
+.attempt .verdict {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin: 0 0 10px;
+}
+
+.attempt .verdict:empty {
+  display: none;
+}
+
+.attempt .try {
+  font-weight: 600;
   font-size: 1rem;
+  color: var(--ink);
 }
 
 .badge {
@@ -1049,10 +1274,40 @@ kbd {
   font-size: 0.93rem;
 }
 
-.attempt p {
+.attempt .notes > p:not(.verdict) {
   margin: 0 0 12px;
   font-size: 0.93rem;
   color: var(--muted);
+}
+
+.actions,
+.after {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Saving is what most people came for, so it is the solid button. */
+.actions a.download {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+  text-decoration: none;
+}
+
+.actions a.download:hover {
+  color: var(--on-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.after {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }
 
 a.download {
@@ -1139,6 +1394,17 @@ a.download:hover {
   font-size: 0.85rem;
 }
 
+/* "Use these pieces" takes the first line; saving and removing share the next. */
+.past-actions button:first-child {
+  flex: 1 1 100%;
+}
+
+.past-actions button:last-child {
+  margin-left: auto;
+  border-color: transparent;
+  color: var(--muted);
+}
+
 .past-actions .download {
   font-size: 0.85rem;
 }
@@ -1217,6 +1483,33 @@ a.download:hover {
 
   button.primary {
     width: 100%;
+  }
+}
+
+/* Fingers need more room than a mouse pointer. */
+@media (pointer: coarse) {
+  .item .remove {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* The cross looks the same size; the area that takes the tap is larger. */
+  .item .remove::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+
+  .segments span {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .past-actions button,
+  .past-actions .download {
+    min-height: 40px;
+    padding-top: 9px;
+    padding-bottom: 9px;
   }
 }
 

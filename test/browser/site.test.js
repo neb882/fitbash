@@ -112,7 +112,9 @@ after(async () => {
  * answers and collects what the page sent them.
  */
 async function open(t, { url = `${staticSite.origin}/fitbash/`, context = {}, services = {}, init } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, ...context });
+  // Motion is off unless a test asks for it: the page glides to the outfit when one is made, and a press
+  // sent while it is still gliding can land on the wrong thing.
+  const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, reducedMotion: "reduce", ...context });
   if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   page.setDefaultTimeout(15_000); // A page that never comes up should fail a test quickly, not hang it.
@@ -429,11 +431,11 @@ test("a picture is made, checked against the pieces, and redone once with the ch
   await page.check('input[name="style"][value="model"]', { force: true });
   await page.fill("#notes", "tucked in");
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
 
   assert.deepEqual(await cards(page), [
-    "Attempt 2 | Matches your pieces · 9/10 | Best match | Download",
-    "Attempt 1 | Off in places · 4/10 | frog tee: the print is red, not yellow | Download",
+    "Second try | Matches your pieces · 9/10 | Best match | Save picture",
+    "First try | Off in places · 4/10 | frog tee: the print is red, not yellow | Save picture",
   ]);
 
   // The image model gets the full-size piece; the check gets the smaller, cheaper copy.
@@ -460,8 +462,8 @@ test("without a Claude key one picture is made and nothing is sent to the check"
   await page.fill("#provider-key", "GOOD-KEY");
   await addFiles(page, [TEE, JEANS]);
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
-  assert.deepEqual(await cards(page), ["Attempt 1 | Download"]);
+  await untilText(page, "#progress", "Your outfit is ready.");
+  assert.deepEqual(await cards(page), ["Save picture"]);
   assert.equal(seen.google.length, 1);
   assert.equal(seen.google[0].body.input.filter((part) => part.type === "image").length, 2);
   assert.equal(seen.claude.length, 0);
@@ -490,7 +492,7 @@ test("the other service is sent the pieces as a multipart edit, and its verifica
   await addFiles(page, [TEE, JEANS]);
 
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   assert.deepEqual(seen.openai[0], { authorization: "Bearer OPENAI-KEY", model: "renamed-model", pictures: 2 });
 
   services.openaiError = unverified;
@@ -584,7 +586,7 @@ test("the page fits a phone and tells touch users what to tap", options, async (
   await page.fill("#claude-key", "GOOD-CLAUDE");
   await addFiles(page, [TEE, JEANS]);
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   assert.equal(await page.locator(".attempt").count(), 2);
   assert.equal(await overflow(), 0, "with results showing");
 });
@@ -640,7 +642,7 @@ test("a free model on the visitor's own computer: connect, download the suggeste
 
   await addFiles(page, [TEE, JEANS]);
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   assert.deepEqual(seen.local[1], { model: "Flux-2-Klein-4B", size: "896x1152", pictures: 2 });
   assert.match(await page.getAttribute(".attempt img", "src"), /^data:image\/png;base64,/);
   assert.equal(seen.google.length + seen.openai.length + seen.claude.length, 0);
@@ -707,7 +709,7 @@ test("outfits made here are kept in this browser, and can be looked at, reused a
   await page.fill("#provider-key", "GOOD-KEY");
   await page.check('input[name="style"][value="model"]', { force: true });
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   await page.waitForSelector("#history:not([hidden]) .past");
   assert.equal((await pastOutfits(page)).length, 1);
   assert.match((await pastOutfits(page))[0], /^frog tee and 1 more \| On a model · /);
@@ -719,7 +721,7 @@ test("outfits made here are kept in this browser, and can be looked at, reused a
   await page.fill("#claude-key", "GOOD-CLAUDE");
   await page.check('input[name="style"][value="flatlay"]', { force: true });
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   await page.waitForFunction(() => document.querySelectorAll(".past").length === 2);
   const [newest, older] = await pastOutfits(page);
   assert.match(newest, /\| Flat lay · .* · matches your pieces$/);
@@ -751,7 +753,7 @@ test("outfits made here are kept in this browser, and can be looked at, reused a
   assert.match(await text(page, "#add-status"), /Loaded the 2 pieces/);
   const sentBefore = seen.google.length;
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   assert.equal(seen.google.length, sentBefore + 1);
   const again = seen.google.at(-1).body;
   assert.equal(again.input.filter((part) => part.type === "image").length, 2);
@@ -826,7 +828,7 @@ test("where the browser won't store anything, pictures are still made and the li
   await page.fill("#provider-key", "GOOD-KEY");
   await addFiles(page, TEE);
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   assert.equal(await page.locator(".attempt img").count(), 1);
   assert.equal(await page.isHidden("#history"), true);
   assert.deepEqual(seen.errors, []);
@@ -873,7 +875,7 @@ for (const scheme of ["light", "dark"]) {
     await page.fill("#link", "not a link");
     await page.click("#link-form button");
     await page.click("#generate");
-    await untilText(page, "#progress", "Done.");
+    await untilText(page, "#progress", "Your outfit is ready.");
     await page.waitForSelector(".past");
     found.push(...(await problems("results and past outfits")));
 
@@ -895,15 +897,15 @@ test("when no attempt passes the check, the page stops at two pictures and keeps
   await page.fill("#claude-key", "GOOD-CLAUDE");
   await addFiles(page, TEE);
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
 
   // Each attempt is the visitor's money: two pictures and two checks, and no more.
   assert.equal(seen.google.length, 2);
   assert.equal(seen.claude.length, 2);
   // The first attempt scored higher, so it is the one shown first and the one kept.
   const shown = await cards(page);
-  assert.match(shown[0], /^Attempt 1 \| Off in places · 6\/10 \| Best match/);
-  assert.match(shown[1], /^Attempt 2 \| Off in places · 3\/10/);
+  assert.match(shown[0], /^First try \| Off in places · 6\/10 \| Best match/);
+  assert.match(shown[1], /^Second try \| Off in places · 3\/10/);
   await page.waitForSelector(".past");
   const kept = await page.evaluate(async () => {
     const [latest] = await (await import("./lib/history.js")).listOutfits();
@@ -928,7 +930,7 @@ test("what a run reports belongs to that run, whatever is changed on the page me
   // While the picture is being made, the first piece is removed and the keys are forgotten.
   await page.click(".item:first-child .remove");
   await page.click("#forget");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
 
   // The check faulted the first piece of the run, the frog tee, and the pictures are real ones.
   assert.match((await cards(page)).join(" || "), /frog tee: print differs/);
@@ -1038,7 +1040,7 @@ test("who wears the outfit, their build and the setting can be chosen where they
   const said = () => seen.google.at(-1).body.input[0].text;
   const make = async () => {
     await page.click("#generate");
-    await untilText(page, "#progress", "Done.");
+    await untilText(page, "#progress", "Your outfit is ready.");
   };
   const pick = (name, value) => page.check(`input[name="${name}"][value="${value}"]`, { force: true });
   const shown = () => page.$$eval("#look-choices fieldset:not([hidden]) legend", (legends) => legends.map((legend) => legend.textContent));
@@ -1328,7 +1330,7 @@ test("a local model that combines four pieces says so, and is not sent a fifth",
 
   await page.click(".item:last-child .remove");
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   assert.deepEqual(seen.local, [{ model: "Flux-2-Klein-4B", size: "896x1152", pictures: 4 }]);
 });
 
@@ -1390,7 +1392,7 @@ test("OpenRouter with a pasted key: choose a model, make a picture, and hear pla
 
   await addFiles(page, [TEE, JEANS]);
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   const [call] = seen.openrouter;
   assert.equal(call.authorization, "Bearer GOOD-OR");
   const { input_references: references, prompt, ...rest } = call.body;
@@ -1451,7 +1453,7 @@ test("Connect OpenRouter: sign in there, come back with the key filled in", opti
 
   await addFiles(page, TEE);
   await page.click("#generate");
-  await untilText(page, "#progress", "Done.");
+  await untilText(page, "#progress", "Your outfit is ready.");
   assert.equal(seen.openrouter[0].authorization, "Bearer GOOD-OR");
 
   // A sign-in that OpenRouter does not honour leaves the old key alone and says what to do.
@@ -1469,4 +1471,154 @@ test("an address that merely carries a code starts nothing", options, async (t) 
   assert.equal(await page.inputValue("#provider-key"), "");
   assert.equal(await page.evaluate(() => document.querySelector('#providers input:checked').value), "gemini");
   assert.equal(seen.signIns.length, 0);
+});
+
+// ---- ease of use: what a first-time visitor on a phone meets -----------------
+
+test("a first visit shows an example outfit, and its three pieces can be tried with one press", options, async (t) => {
+  const { page, seen } = await open(t);
+  await page.waitForSelector("#example:not([hidden])");
+  // The example's pictures really load, from the subfolder the site is served under.
+  const loaded = await page.$$eval("#example img", (pictures) => pictures.map((picture) => picture.complete && picture.naturalWidth > 0));
+  assert.deepEqual(loaded, [true, true, true, true]);
+
+  await page.click("#example-try");
+  await untilText(page, "#add-status", "Added the three example pieces");
+  assert.deepEqual(
+    await page.$$eval(".item input", (inputs) => inputs.map((input) => input.value)),
+    ["frog tee", "blue jeans", "red and white sneakers"],
+  );
+  assert.equal(await text(page, "#count"), "3 of 8");
+  // The same three are not added twice.
+  assert.equal(await page.isDisabled("#example-try"), true);
+  assert.equal(await page.isEnabled("#generate"), true);
+  // With the pieces taken away again the offer is back, and it is withdrawn once a visitor adds a piece of their own.
+  for (let n = 3; n > 0; n--) await page.click(".item .remove");
+  assert.equal(await page.isEnabled("#example-try"), true);
+  await addFiles(page, TEE);
+  assert.equal(await page.isDisabled("#example-try"), true);
+
+  // Someone who has already made an outfit here needs no introduction.
+  await page.fill("#provider-key", "GOOD-KEY");
+  await page.click("#generate");
+  await untilText(page, "#progress", "Your outfit is ready.");
+  await page.waitForSelector(".past");
+  await page.reload();
+  await page.waitForSelector(".past");
+  assert.equal(await page.isHidden("#example"), true);
+  assert.deepEqual(seen.failed, ["/fitbash/api/config", "/fitbash/api/config"]);
+  assert.deepEqual(seen.errors, []);
+});
+
+test("on a phone, making an outfit brings the outfit into view and counts the wait", options, async (t) => {
+  const services = { googleDelay: 4000 };
+  const { page } = await open(t, { context: { ...devices["Pixel 7"], reducedMotion: "no-preference" }, services });
+  await page.fill("#provider-key", "GOOD-KEY");
+  await addFiles(page, [TEE, JEANS]);
+  const stageTop = () => page.evaluate(() => document.querySelector("#stage").getBoundingClientRect().top / window.innerHeight);
+  // With the button in the middle of the screen, the outfit's frame begins in the lower half and runs off it.
+  await page.locator("#generate").scrollIntoViewIfNeeded();
+  assert.ok((await stageTop()) > 0.5, `the outfit frame should start low on the screen, at ${await stageTop()}`);
+  assert.equal(await page.isHidden("#elapsed"), true);
+
+  await page.click("#generate");
+  await page.waitForFunction(() => {
+    const top = document.querySelector("#stage").getBoundingClientRect().top;
+    return top >= -1 && top < window.innerHeight * 0.3;
+  });
+  // The wait is counted where it can be seen.
+  await page.waitForFunction(() => {
+    const clock = document.querySelector("#elapsed");
+    return !clock.hidden && clock.getClientRects().length > 0 && /^0:0[1-9]$/.test(clock.textContent);
+  });
+  await untilText(page, "#progress", "Your outfit is ready.");
+  await page.waitForFunction(() => document.querySelector("#elapsed").hidden);
+
+  // "Make another" at the foot of the outfit goes back to the top of it, where the progress is.
+  await page.locator("#again").scrollIntoViewIfNeeded();
+  await page.click("#again");
+  await page.waitForFunction(() => {
+    const top = document.querySelector("#stage").getBoundingClientRect().top;
+    return top >= -1 && top < window.innerHeight * 0.3;
+  });
+  await untilText(page, "#progress", "Your outfit is ready.");
+});
+
+test("on a phone, every row of choices fits on one line and the small buttons are big enough to tap", options, async (t) => {
+  const { page } = await open(t, { context: devices["Pixel 7"] });
+  await addFiles(page, TEE);
+  await page.check('input[name="style"][value="model"]', { force: true });
+  // Each row's options sit side by side: none dropped to a line of its own.
+  const rows = await page.$$eval("#styles, #look-choices fieldset:not([hidden]) .segments", (groups) =>
+    groups.map((group) => new Set([...group.querySelectorAll("label")].map((label) => Math.round(label.getBoundingClientRect().top))).size),
+  );
+  assert.deepEqual(rows, [1, 1, 1, 1]);
+  // Nothing is squeezed until its words are cut off.
+  const cut = await page.$$eval("#styles span, #look-choices fieldset:not([hidden]) span", (spans) =>
+    spans.filter((span) => span.scrollWidth > span.clientWidth).map((span) => span.textContent),
+  );
+  assert.deepEqual(cut, []);
+  // The whole of the box's hint can be read: its words, in the box's own lettering, are no wider than the box.
+  const hint = await page.$eval(".item input", (input) => {
+    const style = getComputedStyle(input);
+    const pen = document.createElement("canvas").getContext("2d");
+    pen.font = `${style.fontSize} ${style.fontFamily}`;
+    const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return { words: pen.measureText(input.placeholder).width, room };
+  });
+  assert.ok(hint.words <= hint.room, `the hint is ${hint.words}px wide in a box with room for ${hint.room}px`);
+
+  const remove = await page.$eval(".item .remove", (button) => {
+    const box = button.getBoundingClientRect();
+    return Math.min(box.width, box.height);
+  });
+  assert.ok(remove >= 36, `the remove button is ${remove}px`);
+});
+
+test("a finished outfit can be saved, shared where the device allows it, and made again", options, async (t) => {
+  // A device with a share sheet: this stand-in notes what it was handed.
+  const init = () => {
+    window.shared = [];
+    navigator.canShare = (data) => Boolean(data?.files?.length) && data.files.every((file) => file.type === "image/png");
+    navigator.share = async (data) => void window.shared.push({ title: data.title, name: data.files[0].name, type: data.files[0].type, size: data.files[0].size });
+  };
+  const { page, seen } = await open(t, { init });
+  await addFiles(page, [TEE, JEANS]);
+
+  // The stand-in collage is not worth sharing or making again: the page asks for Setup to be finished.
+  await page.click("#generate");
+  await untilText(page, "#progress", "only a collage");
+  assert.equal(await page.isHidden("#after"), true);
+  assert.equal(await page.locator(".attempt .share").count(), 0);
+
+  await page.fill("#provider-key", "GOOD-KEY");
+  await page.locator(".item input").nth(0).fill("frog tee");
+  await page.click("#generate");
+  await untilText(page, "#progress", "Your outfit is ready.");
+  // One picture carries no "first try" label; it says what it is of instead.
+  assert.deepEqual(await cards(page), ["Save picture | Share"]);
+  assert.equal(await text(page, ".attempt figcaption"), "Flat lay · frog tee and 1 more");
+  assert.match(await page.getAttribute(".attempt .download", "href"), /^data:image\/png;base64,/);
+  assert.equal(await page.getAttribute(".attempt .download", "download"), "fitbash-outfit-1.png");
+
+  await page.click(".attempt .share");
+  const shared = await page.evaluate(() => window.shared);
+  assert.equal(shared.length, 1);
+  assert.deepEqual([shared[0].name, shared[0].type], ["fitbash-outfit-1.png", "image/png"]);
+  assert.equal(shared[0].size, Buffer.from(OUTFIT_RIGHT, "base64").length);
+
+  await page.click("#again");
+  await page.waitForFunction(() => document.querySelectorAll(".past").length === 2);
+  assert.equal(seen.google.length, 2);
+  assert.equal(await page.isVisible("#after"), true);
+  assert.deepEqual(seen.errors, []);
+});
+
+test("a browser without a share sheet offers saving only", options, async (t) => {
+  const { page } = await open(t, { init: () => delete Navigator.prototype.canShare });
+  await page.fill("#provider-key", "GOOD-KEY");
+  await addFiles(page, TEE);
+  await page.click("#generate");
+  await untilText(page, "#progress", "Your outfit is ready.");
+  assert.deepEqual(await cards(page), ["Save picture"]);
 });

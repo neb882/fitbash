@@ -40,6 +40,42 @@
     </header>
 
     <main>
+      <!-- A first visit: what the page does, shown instead of described. Filled in and shown by app.js. -->
+      <section id="example" class="example" aria-labelledby="example-heading" hidden>
+        <h2 id="example-heading">Three pictures in, <em>one outfit out.</em></h2>
+        <div class="example-words">
+          <p>
+            Add pictures of clothes from a shop or from your own wardrobe, and see them together before you buy or
+            get dressed. The outfit here was made by this page from the three pictures beside it.
+          </p>
+          <button id="example-try" type="button" class="quiet strong">Try it with these three</button>
+        </div>
+        <div class="example-figure">
+          <ul class="example-pieces">
+            <li>
+              <img src="examples/frog-tee-small.webp" alt="A yellow T-shirt with a frog print" width="280" height="280" />
+              <span>frog tee</span>
+            </li>
+            <li>
+              <img src="examples/blue-jeans-small.webp" alt="A pair of blue jeans" width="280" height="280" />
+              <span>blue jeans</span>
+            </li>
+            <li>
+              <img src="examples/sneakers-small.webp" alt="White sneakers with red laces" width="280" height="280" />
+              <span>sneakers</span>
+            </li>
+          </ul>
+          <svg class="example-arrow" viewBox="0 0 64 40" aria-hidden="true">
+            <path d="M4 22c14-10 30-12 50-4" />
+            <path d="M44 8l11 10-13 7" />
+          </svg>
+          <figure class="plate example-outfit">
+            <img src="examples/outfit.webp" alt="The T-shirt, jeans and sneakers laid out together as one outfit" width="672" height="900" />
+            <figcaption>the outfit</figcaption>
+          </figure>
+        </div>
+      </section>
+
       <details id="settings" class="panel settings">
         <summary>
           <span id="settings-dot" class="dot" aria-hidden="true"></span>
@@ -49,9 +85,9 @@
         </summary>
 
         <p class="lead">
-          fitbash asks an AI image model to make your outfit picture. You can connect a paid service, which charges
-          you a few cents per picture, or run a free model on your own computer if it has a good graphics card. You
-          only do this once.
+          Outfit pictures are made by an AI service that you connect here, once. A paid service charges you a few
+          cents per picture and works on any device, a phone included. A free model runs on your own computer, if
+          it has a good graphics card.
         </p>
 
         <fieldset class="segmented">
@@ -84,6 +120,10 @@
           <select id="provider-model-choice"></select>
         </div>
         <p id="provider-note" class="muted"></p>
+        <p class="muted">
+          A key is a long password that lets this page make pictures on your account with the service. Treat it
+          like a password: don't send it to anyone.
+        </p>
         </div>
 
         <div id="local-setup" hidden>
@@ -263,7 +303,10 @@
 
       <section id="stage" class="panel stage" aria-labelledby="result-heading">
         <h2 id="result-heading"><span class="num">3</span> Your outfit</h2>
-        <p id="progress" class="status" role="status">Your outfit picture shows up here.</p>
+        <div class="progress-row">
+          <p id="progress" class="status" role="status">Your outfit picture shows up here.</p>
+          <span id="elapsed" class="elapsed" aria-hidden="true" hidden></span>
+        </div>
         <div class="placeholder" aria-hidden="true">
           <svg viewBox="0 0 64 64">
             <path d="M32 21a5 5 0 1 0-5-5" />
@@ -271,6 +314,10 @@
           </svg>
         </div>
         <ol id="attempts" class="attempts"></ol>
+        <div id="after" class="after" hidden>
+          <button id="again" type="button" class="quiet strong">Make another</button>
+          <span class="muted">Each one comes out a little different.</span>
+        </div>
       </section>
       </div>
 

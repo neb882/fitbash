@@ -107,7 +107,12 @@ const ui = {
   claudeModel: $("claude-model"),
   forget: $("forget"),
   progress: $("progress"),
+  elapsed: $("elapsed"),
   attempts: $("attempts"),
+  after: $("after"),
+  again: $("again"),
+  example: $("example"),
+  exampleTry: $("example-try"),
   history: $("history"),
   historyNote: $("history-note"),
   historyList: $("history-list"),
@@ -635,9 +640,12 @@ async function finishOpenRouterConnect() {
   else setKeyStatus("The sign-in didn't finish. Press Connect to try again, or use the steps below.", true);
 }
 
+/** Glide to a part of the page, or jump there for someone who has asked for less motion. */
+const scrolling = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+
 function openSetup() {
   ui.settings.open = true;
-  ui.settings.scrollIntoView({ behavior: "smooth", block: "start" });
+  ui.settings.scrollIntoView({ behavior: scrolling(), block: "start" });
 }
 
 // ---- items -----------------------------------------------------------------
@@ -728,7 +736,7 @@ function renderItems() {
           type: "text",
           value: item.label,
           maxlength: "80",
-          placeholder: "What is it? e.g. frog tee",
+          placeholder: "What is it?",
           "aria-label": `Name of piece ${index + 1}`,
           oninput: (event) => {
             item.label = event.target.value;
@@ -741,6 +749,7 @@ function renderItems() {
   const n = state.items.length;
   ui.empty.hidden = n > 0;
   ui.count.textContent = n ? `${n} of ${MAX_ITEMS}` : "";
+  ui.exampleTry.disabled = n > 0;
   renderNameHint();
   updateGenerate();
 }
@@ -748,6 +757,34 @@ function renderItems() {
 /** A name helps the picture model keep a piece right, most of all an odd one: say so while any piece has none. */
 function renderNameHint() {
   ui.nameHint.hidden = !state.items.some((item) => !item.label?.trim());
+}
+
+/** The three pieces of the example at the top of a first visit, to try the page without hunting for pictures. */
+const EXAMPLE_PIECES = [
+  { file: "examples/frog-tee.webp", label: "frog tee" },
+  { file: "examples/blue-jeans.webp", label: "blue jeans" },
+  { file: "examples/sneakers.webp", label: "red and white sneakers" },
+];
+
+async function addExamplePieces() {
+  if (state.items.length > 0) return;
+  ui.exampleTry.disabled = true;
+  setAddStatus("Adding…");
+  try {
+    const blobs = await Promise.all(
+      EXAMPLE_PIECES.map(async ({ file }) => {
+        const res = await fetch(file);
+        if (!res.ok) throw new Error(`no ${file}`);
+        return res.blob();
+      }),
+    );
+    for (const [index, blob] of blobs.entries()) await addBlob(blob, EXAMPLE_PIECES[index].label);
+    setAddStatus("Added the three example pieces. Now pick a look and press “Make the outfit”.");
+    $("pieces-heading").scrollIntoView({ behavior: scrolling(), block: "start" });
+  } catch {
+    setAddStatus("The example pictures couldn't be loaded. Check your connection, or add pictures of your own.", true);
+    ui.exampleTry.disabled = state.items.length > 0;
+  }
 }
 
 async function addFiles(files) {
@@ -873,6 +910,8 @@ function updateGenerate() {
   ui.stage.setAttribute("aria-busy", String(state.busy));
   ui.generate.disabled = state.busy || state.items.length === 0;
   ui.generate.textContent = state.busy ? "Working…" : "Make the outfit";
+  ui.generate.classList.toggle("busy", state.busy);
+  ui.again.disabled = state.busy;
 }
 
 function setProgress(text, isError = false) {
@@ -880,37 +919,70 @@ function setProgress(text, isError = false) {
   ui.progress.classList.toggle("error", isError);
 }
 
+const TRIES = ["First try", "Second try", "Third try"];
+
 function card(attempt) {
   let node = ui.attempts.querySelector(`[data-attempt="${attempt}"]`);
   if (!node) {
     node = el("li", { class: "attempt", "data-attempt": String(attempt) }, [
-      el("div", { class: "picture" }),
-      el("div", { class: "notes" }, [el("h3", {}, [el("span", { text: `Attempt ${attempt}` })])]),
+      el("figure", { class: "plate" }, [el("div", { class: "picture" }), el("figcaption")]),
+      el("div", { class: "notes" }, [el("p", { class: "verdict" }), el("div", { class: "actions" })]),
     ]);
     ui.attempts.append(node);
+    // One picture needs no name. Once there are two, each says which it was.
+    const cards = [...ui.attempts.children];
+    if (cards.length > 1) {
+      for (const each of cards) {
+        if (each.querySelector(".try")) continue;
+        const number = Number(each.dataset.attempt);
+        each.querySelector(".verdict").prepend(el("span", { class: "try", text: TRIES[number - 1] ?? `Try ${number}` }));
+      }
+    }
   }
   return node;
 }
 
-function showImage(attempt, image) {
+/** Whether this browser can hand a picture to the device's own share sheet (messages, mail, other apps). */
+function canShare(file) {
+  try {
+    return Boolean(navigator.canShare?.({ files: [file] }));
+  } catch {
+    return false;
+  }
+}
+
+async function share(file) {
+  try {
+    await navigator.share({ files: [file], title: "My outfit" });
+  } catch (error) {
+    // Closing the share sheet without choosing anything is not a failure.
+    if (error?.name !== "AbortError") setProgress("Sharing didn't work here. Press “Save picture” instead.", true);
+  }
+}
+
+function showImage(attempt, image, run) {
   const node = card(attempt);
   const src = `data:${image.mimeType};base64,${image.data}`;
   const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/svg+xml": "svg" }[image.mimeType] ?? "png";
-  node.querySelector(".picture").replaceChildren(el("img", { src, alt: `Generated outfit, attempt ${attempt}` }));
-  node.querySelector(".notes").append(
-    el("a", { class: "download", href: src, download: `fitbash-outfit-${attempt}.${extension}`, text: "Download" }),
-  );
+  const name = `fitbash-outfit-${attempt}.${extension}`;
+  node.querySelector(".picture").replaceChildren(el("img", { src, alt: `Your outfit: ${run.about}` }));
+  node.querySelector("figcaption").textContent = run.about;
+  const actions = node.querySelector(".actions");
+  actions.append(el("a", { class: "download", href: src, download: name, text: "Save picture" }));
+  if (!navigator.canShare) return;
+  const file = new File([base64ToBytes(image.data)], name, { type: image.mimeType });
+  if (canShare(file)) actions.append(el("button", { type: "button", class: "quiet share", text: "Share", onclick: () => share(file) }));
 }
 
 function showReview(attempt, review, labels) {
   const notes = card(attempt).querySelector(".notes");
-  const download = notes.querySelector(".download");
+  const actions = notes.querySelector(".actions");
 
   if (review.status !== "reviewed") {
-    download.before(el("p", { text: `Not checked: ${review.reason}` }));
+    actions.before(el("p", { text: `Not checked: ${review.reason}` }));
     return;
   }
-  notes.querySelector("h3").append(
+  notes.querySelector(".verdict").append(
     el("span", {
       class: `badge ${review.verdict}`,
       text: review.verdict === "pass" ? `Matches your pieces · ${review.score}/10` : `Off in places · ${review.score}/10`,
@@ -924,7 +996,7 @@ function showReview(attempt, review, labels) {
     });
   if (review.otherProblems) problems.push(review.otherProblems);
   if (problems.length) {
-    download.before(el("ul", {}, problems.map((text) => el("li", { text }))));
+    actions.before(el("ul", {}, problems.map((text) => el("li", { text }))));
   }
 }
 
@@ -932,7 +1004,7 @@ function markBest(best, attempts) {
   if (attempts < 2) return;
   const node = card(best);
   node.classList.add("best");
-  node.querySelector("h3").append(el("span", { class: "badge pick", text: "Best match" }));
+  node.querySelector(".verdict").append(el("span", { class: "badge pick", text: "Best match" }));
   ui.attempts.prepend(node);
 }
 
@@ -949,7 +1021,7 @@ function handleEvent(event, run) {
       setProgress(event.attempt === 1 ? `Making the picture${of}. ${wait}` : `Redoing it with the check's notes${of}.`);
       break;
     case "image":
-      showImage(event.attempt, event.image);
+      showImage(event.attempt, event.image, run);
       break;
     case "checking":
       setProgress("Checking the picture against your pieces.");
@@ -962,7 +1034,12 @@ function handleEvent(event, run) {
       break;
     case "done":
       markBest(event.best, event.attempts);
-      setProgress(run.real ? "Done." : "This is only a collage of your pieces. Finish Setup at the top of the page to get a real outfit picture.");
+      setProgress(
+        run.real
+          ? "Your outfit is ready."
+          : "This is only a collage of your pieces. Finish Setup at the top of the page to get a real outfit picture.",
+      );
+      ui.after.hidden = !run.real;
       break;
   }
 }
@@ -972,8 +1049,16 @@ async function generate() {
   state.busy = true;
   updateGenerate();
   ui.attempts.replaceChildren();
+  ui.after.hidden = true;
   for (const stale of ui.attempts.parentElement.querySelectorAll(".attempts ~ .status")) stale.remove();
   setProgress("Getting started…");
+  // On a phone the outfit is further down the page than the button: go there, or the press seems to do nothing.
+  // Wherever the frame doesn't fit on the screen, its top is brought to the top, where the progress is.
+  const frame = ui.stage.getBoundingClientRect();
+  if (frame.top < 0 || (frame.bottom > window.innerHeight && frame.top > 80)) {
+    ui.stage.scrollIntoView({ behavior: scrolling(), block: "start" });
+  }
+  const stopClock = startClock();
 
   const { settings } = state;
   try {
@@ -993,6 +1078,7 @@ async function generate() {
     const run = {
       maxAttempts,
       labels: request.items.map((item) => item.label),
+      about: `${STYLES[request.style].label} · ${describePieces(request.items.map((item) => item.label ?? ""))}`,
       real: provider.name !== "mock",
       local: provider.name === "local",
     };
@@ -1004,6 +1090,7 @@ async function generate() {
       if (event.type === "done") best = event.best;
       handleEvent(event, run);
     }
+    stopClock(); // the picture is here; keeping a copy below is not part of the wait
     // A stand-in collage isn't an outfit worth keeping.
     if (run.real && made.has(best)) await keepOutfit(made.get(best), request);
   } catch (error) {
@@ -1019,9 +1106,26 @@ async function generate() {
     setProgress(message, true);
     if (error instanceof ProviderError && /in Setup/.test(message)) openSetup();
   } finally {
+    stopClock();
     state.busy = false;
     updateGenerate();
   }
+}
+
+/** Count the wait where it can be seen, so a slow picture doesn't look like a stuck page. Returns how to stop. */
+function startClock() {
+  const began = Date.now();
+  const show = () => {
+    const seconds = Math.floor((Date.now() - began) / 1000);
+    ui.elapsed.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+  show();
+  ui.elapsed.hidden = false;
+  const ticking = setInterval(show, 1000);
+  return () => {
+    clearInterval(ticking);
+    ui.elapsed.hidden = true;
+  };
 }
 
 // ---- past outfits ----------------------------------------------------------
@@ -1097,7 +1201,7 @@ function pastCard(outfit) {
         class: "download",
         href: url,
         download: `fitbash-outfit.${EXTENSIONS[outfit.picture.type] ?? "png"}`,
-        text: "Download",
+        text: "Save",
       }),
       el("button", {
         type: "button",
@@ -1120,13 +1224,14 @@ async function renderHistory() {
   } catch {
     // The browser won't store anything here (a private window, say). The page works without the list.
     ui.history.hidden = true;
-    return;
+    return 0;
   }
   for (const url of pastUrls) URL.revokeObjectURL(url);
   pastUrls = [];
   ui.history.hidden = outfits.length === 0;
   ui.historyNote.textContent = `The outfits you made here, newest first. They are kept in this browser only, up to ${MAX_OUTFITS}.`;
   ui.historyList.replaceChildren(...outfits.map(pastCard));
+  return outfits.length;
 }
 
 /** Put a past outfit's pieces and look back into the page, ready to change and make again. */
@@ -1147,7 +1252,7 @@ async function reusePieces(outfit) {
   for (const { name, options } of CHOICES) if (outfit[name] in options) setChoice(name, outfit[name]);
   renderLookChoices();
   setAddStatus(`Loaded the ${pieces.length === 1 ? "piece" : `${pieces.length} pieces`} of that outfit. Change what you like and make it again.`);
-  $("pieces-heading").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("pieces-heading").scrollIntoView({ behavior: scrolling(), block: "start" });
 }
 
 function wireHistory() {
@@ -1235,6 +1340,8 @@ function wire() {
   });
 
   ui.generate.addEventListener("click", generate);
+  ui.again.addEventListener("click", generate);
+  ui.exampleTry.addEventListener("click", addExamplePieces);
 }
 
 /** The local helper server answers api/config; a static host does not. */
@@ -1253,7 +1360,8 @@ async function start() {
   wire();
   wireSettings();
   wireHistory();
-  renderHistory();
+  // Someone with no outfits yet is shown what the page makes before being asked to set anything up.
+  renderHistory().then((outfits) => (ui.example.hidden = outfits > 0));
 
   // A newer version of the site: say so, and leave the reloading to the visitor.
   $("update-reload").addEventListener("click", () => location.reload());
