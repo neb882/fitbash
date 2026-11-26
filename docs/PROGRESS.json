@@ -104,18 +104,11 @@
         "WO-07"
       ],
       "rounds": 2,
-      "status": "open",
-      "so_far": "WO-05: 0 clean flat lays in 6 on the local models; something nobody supplied in 6 of 6, a piece lying on another in 5 of 6. WO-06 (14 pictures): without the sentence about adding missing basics, no trousers and no shoes of another kind in 10 of 10 (the standard model still drew a third clown shoe in 3 of 4); the overlap stayed at 5 of 6 and a note about gaps left it at 4 of 4; where the sentence applied it added the missing pieces in 4 of 4 but two pairs of shoes in 2 of 4 and trousers under supplied jeans in 1 of 2. Decided: the page now reads the pieces' names and offers basics only for what they leave open (nothing when bottoms and shoes are both named, shoes only when bottoms are named, bottoms only when shoes are); checked on Google's model with 3 pictures, nothing added where nothing was missing and plain shoes only where shoes were. The overlap is taken as the models' limit: the tip with a flat lay on a local model stays, and no other wording will be tried. WO-07 checks the one new sentence (only shoes missing) on the card; G9 closes on its report either way."
+      "status": "closed",
+      "outcome": "Three orders on the published site (WO-05, WO-06, WO-07; 39 flat lays and comparison pictures on the 12 GB card). What was fixed: the trousers and other shoes nobody supplied came from the sentence that lets the model add missing basics (5 flat lays of 6 with it, 0 of 12 without); the page now reads the pieces' names and offers basics only for what they leave open, and WO-07 confirmed the one new sentence on the card: with only shoes missing, shoes added and no trousers in 4 of 4, where the old sentence drew trousers under supplied jeans in 1 of 2. What was not: the pieces lie on each other (5 of 6, and 4 of 4 with a note about gaps); the standard model draws more shoes than the supplied pair in 4 of 5 and the larger in 1 of 7; added shoes came as two pairs in 1 of 4. These are taken as the models' limit for flat lays. The page says, with a flat lay on a local model, that 'On a model' keeps the pieces best, and no other wording will be tried. Not run: only shoes named (the sentence for missing bottoms), and names the page does not recognise."
     }
   ],
-  "in_flight": [
-    {
-      "order": "WO-07",
-      "with": "the worker on the owner's computer",
-      "sent": "2026-11-26",
-      "report": "docs/reports/WO-07.md on the branch gpu-findings"
-    }
-  ],
+  "in_flight": [],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
     "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
