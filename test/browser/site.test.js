@@ -1481,6 +1481,8 @@ test("a first visit shows an example outfit, and its three pieces can be tried w
   // The example's pictures really load, from the subfolder the site is served under.
   const loaded = await page.$$eval("#example img", (pictures) => pictures.map((picture) => picture.complete && picture.naturalWidth > 0));
   assert.deepEqual(loaded, [true, true, true, true]);
+  // The outfit is shown worn, on a mannequin, and described that way to someone who cannot see it.
+  assert.match(await page.getAttribute("#example .example-outfit img", "alt"), /mannequin wearing the T-shirt, the jeans and the sneakers/);
 
   await page.click("#example-try");
   await untilText(page, "#add-status", "Added the three example pieces");
