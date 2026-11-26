@@ -75,6 +75,9 @@ const versionInCharge = (page) =>
         if (!worker) return resolve("");
         const channel = new MessageChannel();
         channel.port1.onmessage = (event) => resolve(event.data.version);
+        // A worker asked at the instant it is being replaced never answers. Without this the
+        // question hung until the whole test timed out: seen on CI, on a commit whose other run passed.
+        setTimeout(() => resolve(""), 1000);
         worker.postMessage({ type: "version" }, [channel.port2]);
       }),
   );
