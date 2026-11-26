@@ -354,8 +354,19 @@ test("the model offered first fits the computer, falling back to what the app ha
     { id: "Flux-2-Klein-4B", sizeGb: 16.1, downloaded: false },
   ];
   assert.equal(pickLocalModel(models, "large"), "Flux-2-Klein-9B-GGUF");
+  // Measured on a 12 GB card: the larger model runs there and keeps lettering right.
+  assert.equal(pickLocalModel(models, "medium"), "Flux-2-Klein-9B-GGUF");
   assert.equal(pickLocalModel(models, "small"), "Flux-2-Klein-4B");
   assert.equal(pickLocalModel(models, ""), "Flux-2-Klein-4B"); // no answer yet: the smallest download
+
+  // A model already on the computer is used before a 19 GB download is asked for.
+  const haveSmaller = models.map((model) => ({ ...model, downloaded: model.id === "Flux-2-Klein-4B" }));
+  assert.equal(pickLocalModel(haveSmaller, "medium"), "Flux-2-Klein-4B");
+  assert.equal(pickLocalModel(haveSmaller, "large"), "Flux-2-Klein-4B");
+  // With both there, the one that suits the computer.
+  const haveBoth = models.map((model) => ({ ...model, downloaded: true }));
+  assert.equal(pickLocalModel(haveBoth, "medium"), "Flux-2-Klein-9B-GGUF");
+  assert.equal(pickLocalModel(haveBoth, "small"), "Flux-2-Klein-4B");
 
   const others = [
     { id: "Big", sizeGb: 30, downloaded: false },

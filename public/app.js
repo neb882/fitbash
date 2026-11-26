@@ -334,8 +334,16 @@ function adoptLocalModel() {
   state.settings.localModel = model?.downloaded ? model.id : "";
   saveSettings();
   if (!model) return;
-  if (model.downloaded) setLocalStatus("Connected and ready.", "good");
-  else if (!state.local.downloading) {
+  if (model.downloaded) {
+    // Quality comes first: where a model that keeps pieces better suits this computer and is
+    // only a download away, say so instead of leaving it unnoticed in the list.
+    const better = state.local.models.find((m) => m.id === LOCAL_TIERS[localTier()]?.model);
+    const tip =
+      better && better.id !== model.id && !better.downloaded
+        ? ` For prints and lettering kept better, choose ${better.id} in the list${better.sizeGb ? ` (a ${better.sizeGb} GB download)` : ""}.`
+        : "";
+    setLocalStatus(`Connected and ready.${tip}`, "good");
+  } else if (!state.local.downloading) {
     setLocalStatus(`Connected. This model has to be downloaded first${model.sizeGb ? ` (${model.sizeGb} GB)` : ""}.`);
   }
 }

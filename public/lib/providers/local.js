@@ -31,11 +31,13 @@ export const LOCAL_TIERS = {
     advice: "The standard model may just fit. Expect it to be slow, and close other programs that use the graphics card.",
   },
   medium: {
-    model: "Flux-2-Klein-4B",
-    // Measured on a 12 GB card: a picture failed when other programs held about 2 GB of it.
-    advice: "A good fit for the standard model. Close games and other programs that use the graphics card while it makes a picture.",
+    // Measured on a 12 GB card (docs/reports/WO-01.md): the larger model ran, took about one and
+    // a half times as long, and kept a lettered print right where the standard one garbled it.
+    // A picture failed when other programs held about 2 GB of the card.
+    model: "Flux-2-Klein-9B-GGUF",
+    advice: "Enough for the larger model, which keeps prints and lettering better. The standard model is a smaller download and quicker. Close games and other programs that use the graphics card while a picture is made.",
   },
-  large: { model: "Flux-2-Klein-9B-GGUF", advice: "Enough for the larger model, which keeps details better." },
+  large: { model: "Flux-2-Klein-9B-GGUF", advice: "Enough for the larger model, which keeps prints and lettering better." },
   apple: {
     model: "Flux-2-Klein-4B",
     advice: "Works on Macs with plenty of memory (16 GB or more). Expect it to be slower than a graphics card.",
@@ -298,10 +300,12 @@ export async function readLocalDownloads(baseUrl, { fetchImpl = fetch } = {}) {
 /** The model to offer first for a kind of computer, out of those the app has. */
 export function pickLocalModel(models, tier) {
   if (models.length === 0) return null;
-  const wanted = LOCAL_TIERS[tier]?.model;
+  const wanted = models.find((model) => model.id === LOCAL_TIERS[tier]?.model);
   return (
-    models.find((model) => model.id === wanted) ??
+    // What is already on the computer comes before a download of many gigabytes.
+    (wanted?.downloaded ? wanted : null) ??
     models.find((model) => model.downloaded) ??
+    wanted ??
     [...models].sort((a, b) => (a.sizeGb ?? Infinity) - (b.sizeGb ?? Infinity))[0]
   ).id;
 }

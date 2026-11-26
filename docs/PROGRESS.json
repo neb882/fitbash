@@ -12,7 +12,7 @@
       ],
       "rounds": 1,
       "status": "open",
-      "so_far": "WO-01: --diffusion-fa is the option the engine needs, on any card (two pieces ask for 16.7 GB of card memory without it, four for 41.7 GB); --offload-to-cpu alone fixes nothing. Setup now shows the step for every card, keeps the line with both options (the one the owner ran; a little faster on several pieces and leaves the card freer), and counts the step as done when --diffusion-fa is saved. Still open: whether one option set is safer than the other for a one-piece outfit when other programs hold part of the card. WO-02 measures that and confirms the change on the published site."
+      "so_far": "WO-01: --diffusion-fa is the option the engine needs, on any card (two pieces ask for 16.7 GB of card memory without it, four for 41.7 GB); --offload-to-cpu alone fixes nothing. Setup now shows the step for every card, keeps the line with both options (the one the owner ran; a little faster on several pieces and leaves the card freer), and counts the step as done when --diffusion-fa is saved. Still open: whether one option set is safer than the other for a one-piece outfit when other programs hold part of the card. WO-02 measures that and confirms the change on the published site. One more thing to weigh when WO-02 is in: with --offload-to-cpu the whole model sits in ordinary memory (15.2 GB for the standard model, 17.6 GB for the larger), which a computer with 16 GB may not have; --diffusion-fa alone keeps about half of it there."
     },
     {
       "id": "G2",
@@ -55,9 +55,9 @@
       "orders": [
         "WO-01"
       ],
-      "rounds": 0,
-      "status": "with_owner",
-      "so_far": "WO-01: Flux-2-Klein-9B-GGUF runs on a 12 GB card with --diffusion-fa, takes about one and a half times as long, kept a lettered print right where the smaller model garbled it, and kept odd shapes no better. Which model Setup suggests for a card is a default, and a change of default waits for the owner."
+      "rounds": 1,
+      "status": "closed",
+      "outcome": "WO-01 measured it on a 12 GB card: Flux-2-Klein-9B-GGUF ran with --diffusion-fa, took about one and a half times as long, and kept a lettered print right where the smaller model garbled it. The owner's answer (2026-11-26) was that quality is the priority, so Setup suggests the larger model from 12 GB up, uses a model that is already downloaded before asking for a 19 GB download, and tells someone on the standard model that the larger one keeps prints better. Not measured: a 16 GB computer, where the larger model's files may not fit in ordinary memory with --offload-to-cpu."
     },
     {
       "id": "G6",
@@ -87,7 +87,8 @@
     "--offload-to-cpu on its own as the memory step: on a 12 GB card it failed every outfit of two to four pieces, exactly as no options did (WO-01).",
     "\"Try again with fewer pieces\" as advice for a failed local picture: with the card nearly full, one piece was the outfit that failed and adding a second made it work (WO-01)."
   ],
-  "open_questions": [
-    "G5: should Setup suggest the larger model (Flux-2-Klein-9B-GGUF) for graphics cards of 12 to 16 GB, instead of only for 20 GB or more? For: it kept lettering right where the smaller model garbled it. Against: a 19 GB download instead of 15, about one and a half times the wait, measured on one card only, and its licence is for non-commercial use."
+  "open_questions": [],
+  "owner_priorities": [
+    "2026-11-26: quality is the priority. Where faithfulness to the pieces trades against speed, download size or a few cents, choose faithfulness (CLAUDE.md, Rules)."
   ]
 }

@@ -598,8 +598,8 @@ test("a free model on the visitor's own computer: connect, download the suggeste
   assert.equal(await page.isVisible("#local-setup"), true);
   assert.equal(await page.getAttribute("#local-app-link", "href"), "https://lemonade-server.ai");
 
-  await page.selectOption("#local-tier", "medium");
-  assert.match(await text(page, "#local-advice"), /good fit for the standard model/);
+  await page.selectOption("#local-tier", "small");
+  assert.match(await text(page, "#local-advice"), /standard model may just fit/);
 
   await page.click("#local-connect");
   await untilText(page, "#local-status", "has to be downloaded first (16.1 GB)");
@@ -939,7 +939,7 @@ test("a local download that fails, or an app that goes away, does not leave Setu
   const services = { local: { catalog: localCatalog(), pullFails: true } };
   const { page } = await open(t, { services });
   await page.click('#providers input[value="local"]', { force: true });
-  await page.selectOption("#local-tier", "medium");
+  await page.selectOption("#local-tier", "small");
   await page.click("#local-connect");
   await untilText(page, "#local-status", "has to be downloaded first");
 
@@ -991,7 +991,7 @@ test("a download in the app is picked up again after the page was closed, and a 
   const services = { local: { catalog, startsAt: 1_000_000_000, bytesPerRead: 25_000_000 } };
   const { page, seen } = await open(t, { services });
   await page.click('#providers input[value="local"]', { force: true });
-  await page.selectOption("#local-tier", "medium");
+  await page.selectOption("#local-tier", "small");
   await page.click("#local-connect");
   await untilText(page, "#local-status", "Connected and ready.");
   await page.selectOption("#local-model", "Flux-2-Klein-9B-GGUF");
@@ -1136,12 +1136,64 @@ test("a piece without a name gets a quiet tip, which goes once every piece is na
   assert.equal(await page.isHidden("#name-hint"), true);
 });
 
+test("a 12 to 16 GB card is offered the larger model, unless a model is already on the computer", options, async (t) => {
+  const services = { local: { catalog: localCatalog() } };
+  const { page } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "medium");
+  assert.match(await text(page, "#local-advice"), /^Enough for the larger model, which keeps prints and lettering better\. The standard model is a smaller download and quicker\. Close games/);
+
+  // Nothing downloaded yet: the larger model is the one offered, and the standard one stays in the list.
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "has to be downloaded first (19 GB)");
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-9B-GGUF");
+  assert.deepEqual(await page.$$eval("#local-model option", (nodes) => nodes.map((node) => node.value)), ["Flux-2-Klein-9B-GGUF", "Flux-2-Klein-4B"]);
+  assert.match(await text(page, "#settings-summary"), /Do this once/);
+
+  // The standard model is already there: it is used, and nobody is sent off to download 19 GB first.
+  const reconnect = async () => {
+    const listed = page.waitForResponse((response) => response.url().includes("/v1/models"));
+    await page.click("#local-connect");
+    await listed;
+  };
+  services.local.catalog = localCatalog().map((model) => ({ ...model, downloaded: model.id === "Flux-2-Klein-4B" }));
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  await reconnect();
+  await untilText(page, "#local-status", "Connected and ready.");
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-4B");
+  // Quality comes first, so the better model is pointed out while the page works with the one that is there.
+  assert.equal(
+    await text(page, "#local-status"),
+    "Connected and ready. For prints and lettering kept better, choose Flux-2-Klein-9B-GGUF in the list (a 19 GB download).",
+  );
+  assert.equal(await text(page, "#settings-summary"), "This computer connected");
+  // A card too small for it is told nothing of the kind.
+  await page.selectOption("#local-tier", "small");
+  await reconnect();
+  await page.waitForFunction(() => document.querySelector("#local-status").textContent === "Connected and ready.");
+  await page.selectOption("#local-tier", "medium");
+
+  // Both there, and no choice made before: the one that suits the computer.
+  services.local.catalog = localCatalog().map((model) => ({ ...model, downloaded: true }));
+  await page.evaluate(() => localStorage.setItem("fitbash-settings", JSON.stringify({ ...JSON.parse(localStorage.getItem("fitbash-settings")), localModel: "" })));
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  await reconnect();
+  await page.waitForFunction(() => document.querySelector("#local-status").textContent === "Connected and ready.");
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-9B-GGUF");
+  // Choosing the standard one all the same is the visitor's call: nothing is left to download, so no tip.
+  await page.selectOption("#local-model", "Flux-2-Klein-4B");
+  await untilText(page, "#settings-summary", "This computer connected");
+  assert.equal(await text(page, "#local-status"), "Connected and ready.");
+});
+
 test("the picture engine's one more step is shown for any graphics card, and goes away once it is done", options, async (t) => {
   const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
   const { page } = await open(t, { context: devices["Pixel 7"], services });
   await page.click('#providers input[value="local"]', { force: true });
-  await page.selectOption("#local-tier", "medium");
-  assert.match(await text(page, "#local-advice"), /Close games and other programs that use the graphics card/);
+  await page.selectOption("#local-tier", "small");
+  assert.match(await text(page, "#local-advice"), /close other programs that use the graphics card/);
   assert.equal(await page.isHidden("#local-memory"), true);
 
   await page.click("#local-connect");
@@ -1242,7 +1294,7 @@ test("a local model that combines four pieces says so, and is not sent a fifth",
   const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
   const { page, seen } = await open(t, { services });
   await page.click('#providers input[value="local"]', { force: true });
-  await page.selectOption("#local-tier", "medium");
+  await page.selectOption("#local-tier", "small");
   await page.click("#local-connect");
   await untilText(page, "#local-status", "Connected and ready.");
   assert.match(await page.$eval("#local-model option:checked", (option) => option.textContent), /^Flux-2-Klein-4B · 16\.1 GB · up to 4 pieces$/);
@@ -1284,7 +1336,7 @@ test("changing the local app's address makes Setup unfinished again", options, a
   const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
   const { page } = await open(t, { services });
   await page.click('#providers input[value="local"]', { force: true });
-  await page.selectOption("#local-tier", "medium");
+  await page.selectOption("#local-tier", "small");
   await page.click("#local-connect");
   await untilText(page, "#local-status", "Connected and ready.");
   assert.equal(await text(page, "#settings-summary"), "This computer connected");
