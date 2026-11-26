@@ -1491,6 +1491,10 @@ test("a first visit shows an example outfit, and its three pieces can be tried w
     ["frog tee", "blue jeans", "red and white sneakers"],
   );
   assert.equal(await text(page, "#count"), "3 of 8");
+  // Trying the example gives the look the example shows.
+  assert.equal(await page.isChecked('input[name="style"][value="mannequin"]'), true);
+  assert.equal(await page.isVisible("#wearer-choice"), true);
+  assert.match(await text(page, "#add-status"), /with the Mannequin look as in the example/);
   // The same three are not added twice.
   assert.equal(await page.isDisabled("#example-try"), true);
   assert.equal(await page.isEnabled("#generate"), true);
@@ -1570,6 +1574,17 @@ test("on a phone, every row of choices fits on one line and the small buttons ar
   });
   assert.ok(hint.words <= hint.room, `the hint is ${hint.words}px wide in a box with room for ${hint.room}px`);
 
+  // In Setup, the kinds of computer can be read whole in their list. A list grows to fit its longest
+  // line until it fills the space it is given, and cuts the line off after that: so it must not fill it.
+  await page.evaluate(() => (document.querySelector("#settings").open = true));
+  await page.click('#providers input[value="local"]', { force: true });
+  const list = await page.$eval("#local-tier", (node) => {
+    const holder = getComputedStyle(node.parentElement);
+    const room = node.parentElement.clientWidth - parseFloat(holder.paddingLeft) - parseFloat(holder.paddingRight);
+    return { width: Math.round(node.getBoundingClientRect().width), room: Math.round(room) };
+  });
+  assert.ok(list.width < list.room, `the list is ${list.width}px wide in ${list.room}px of room`);
+
   const remove = await page.$eval(".item .remove", (button) => {
     const box = button.getBoundingClientRect();
     return Math.min(box.width, box.height);
@@ -1613,6 +1628,16 @@ test("a finished outfit can be saved, shared where the device allows it, and mad
   await page.waitForFunction(() => document.querySelectorAll(".past").length === 2);
   assert.equal(seen.google.length, 2);
   assert.equal(await page.isVisible("#after"), true);
+
+  // A past outfit opened large can be saved and shared from there too.
+  await page.click(".past:first-child .past-picture");
+  assert.equal(await page.isVisible("#viewer-share"), true);
+  assert.match(await page.getAttribute("#viewer-save", "href"), /^blob:/);
+  assert.equal(await page.getAttribute("#viewer-save", "download"), "fitbash-outfit.png");
+  await page.click("#viewer-share");
+  const again = await page.evaluate(() => window.shared);
+  assert.equal(again.length, 2);
+  assert.deepEqual([again[1].name, again[1].type, again[1].size], ["fitbash-outfit.png", "image/png", Buffer.from(OUTFIT_RIGHT, "base64").length]);
   assert.deepEqual(seen.errors, []);
 });
 
@@ -1623,6 +1648,43 @@ test("a browser without a share sheet offers saving only", options, async (t) =>
   await page.click("#generate");
   await untilText(page, "#progress", "Your outfit is ready.");
   assert.deepEqual(await cards(page), ["Save picture"]);
+  await page.waitForSelector(".past");
+  await page.click(".past-picture");
+  assert.equal(await page.isVisible("#viewer-save"), true);
+  assert.equal(await page.isHidden("#viewer-share"), true);
+});
+
+test("a phone can put the site on its home screen with the site's own icon and name", options, async (t) => {
+  const { page, seen } = await open(t);
+  const found = await page.evaluate(async () => {
+    const sizeOf = async (url) => {
+      const picture = new Image();
+      picture.src = url;
+      await picture.decode();
+      return `${picture.naturalWidth}x${picture.naturalHeight}`;
+    };
+    const link = document.querySelector('link[rel="manifest"]');
+    const manifest = await (await fetch(link.href)).json();
+    const icons = [];
+    for (const icon of manifest.icons) icons.push({ ...icon, real: await sizeOf(new URL(icon.src, link.href)) });
+    return {
+      manifest: { ...manifest, icons },
+      startsAt: new URL(manifest.start_url, link.href).href,
+      apple: await sizeOf(document.querySelector('link[rel="apple-touch-icon"]').href),
+    };
+  });
+  assert.equal(found.manifest.name, "fitbash");
+  // Opened from the home screen it is the same page in the same browser, under the folder the site is served from.
+  assert.equal(found.manifest.display, "browser");
+  assert.equal(found.startsAt, `${staticSite.origin}/fitbash/`);
+  // Every icon is there and is the size it says; one of them may be cut to the phone's own shape.
+  assert.deepEqual(found.manifest.icons.map((icon) => [icon.sizes, icon.real, icon.purpose]), [
+    ["192x192", "192x192", "any"],
+    ["512x512", "512x512", "any"],
+    ["512x512", "512x512", "maskable"],
+  ]);
+  assert.equal(found.apple, "180x180");
+  assert.deepEqual(seen.errors, []);
 });
 
 test("with a model on this computer, the page says where it needs help: names, a note for odd shapes, and not a flat lay", options, async (t) => {

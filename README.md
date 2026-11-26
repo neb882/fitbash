@@ -33,6 +33,8 @@ The page walks you through this in its **Setup** box:
 
 After that you just add pictures and press **Make the outfit**. Before setup is finished the page still works, but gives you a plain collage of your pieces instead of a real outfit picture.
 
+A first visit opens with an example, three pictures and the outfit the page made from them, and **Try it with these three** loads those pieces so you can see the whole thing work before finding pictures of your own. A finished outfit has **Save picture**, **Share** where your phone or computer has a share sheet, and **Make another**, since each try comes out a little different. Past outfits are kept below, and one opened large can be saved or shared from there too. On a phone, "Add to Home screen" in the browser's menu gives the site its own icon.
+
 Things worth knowing before you start:
 
 - **Pictures cost money**, usually a few cents each, billed by the service to your own account. Both services want a payment method on file before they make pictures.
@@ -163,6 +165,7 @@ public/                      the whole app; this folder is what GitHub Pages ser
   vendor/anthropic-sdk.js    browser build of the official Anthropic SDK (generated, see below)
   fonts/                     the heading typeface, Instrument Serif, served from this site (SIL Open Font License, in OFL.txt)
   examples/                  the example on a first visit: three pieces and the outfit this page made from them (all four are generated pictures)
+  manifest.webmanifest, icons/   the name and icons a phone uses when the site is put on its home screen
 server.js                    optional local server: serves public/ and adds link lookup
 src/extract.js               product link to candidate pictures
 src/safe-fetch.js            fetching pasted links without reaching private networks
@@ -196,4 +199,4 @@ Every push runs all of them on GitHub. A push to `main` publishes the site only 
 
 - Try the outfit on a photo of yourself.
 - Suggest pieces that would complete the outfit, with links.
-- Share an outfit with someone else.
+- Share an outfit as a link. (Sharing the picture itself is there, through the device's share sheet.)

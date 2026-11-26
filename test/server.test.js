@@ -36,6 +36,9 @@ test("the page and its modules are served", async (t) => {
   assert.equal((await fetch(origin + "/fonts/instrument-serif-regular.woff2")).headers.get("content-type"), "font/woff2");
   // The example pictures: a browser told not to guess a type won't show one sent as plain bytes.
   assert.equal((await fetch(origin + "/examples/outfit.webp")).headers.get("content-type"), "image/webp");
+  // What a phone reads to put the site on its home screen.
+  assert.equal((await fetch(origin + "/manifest.webmanifest")).headers.get("content-type"), "application/manifest+json");
+  assert.equal((await fetch(origin + "/icons/icon-192.png")).headers.get("content-type"), "image/png");
 });
 
 test("the page works from a subfolder on a static host", async () => {

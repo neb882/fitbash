@@ -122,6 +122,8 @@ const ui = {
   viewer: $("viewer"),
   viewerPicture: $("viewer-picture"),
   viewerCaption: $("viewer-caption"),
+  viewerSave: $("viewer-save"),
+  viewerShare: $("viewer-share"),
   viewerClose: $("viewer-close"),
 };
 
@@ -800,7 +802,10 @@ async function addExamplePieces() {
       }),
     );
     for (const [index, blob] of blobs.entries()) await addBlob(blob, EXAMPLE_PIECES[index].label);
-    setAddStatus("Added the three example pieces. Now pick a look and press “Make the outfit”.");
+    // The look of the example above, so that trying it gives what was shown.
+    document.querySelector('input[name="style"][value="mannequin"]').checked = true;
+    renderLookChoices();
+    setAddStatus("Added the three example pieces, with the Mannequin look as in the example. Press “Make the outfit”, or pick another look first.");
     $("pieces-heading").scrollIntoView({ behavior: scrolling(), block: "start" });
   } catch {
     setAddStatus("The example pictures couldn't be loaded. Check your connection, or add pictures of your own.", true);
@@ -972,12 +977,13 @@ function canShare(file) {
   }
 }
 
-async function share(file) {
+/** Hand a picture to the share sheet. `say` shows a message where the person is looking if it can't be done. */
+async function share(file, say) {
   try {
     await navigator.share({ files: [file], title: "My outfit" });
   } catch (error) {
     // Closing the share sheet without choosing anything is not a failure.
-    if (error?.name !== "AbortError") setProgress("Sharing didn't work here. Press “Save picture” instead.", true);
+    if (error?.name !== "AbortError") say();
   }
 }
 
@@ -992,7 +998,7 @@ function showImage(attempt, image, run) {
   actions.append(el("a", { class: "download", href: src, download: name, text: "Save picture" }));
   if (!navigator.canShare) return;
   const file = new File([base64ToBytes(image.data)], name, { type: image.mimeType });
-  if (canShare(file)) actions.append(el("button", { type: "button", class: "quiet share", text: "Share", onclick: () => share(file) }));
+  if (canShare(file)) actions.append(el("button", { type: "button", class: "quiet share", text: "Share", onclick: () => share(file, () => setProgress("Sharing didn't work here. Press “Save picture” instead.", true)) }));
 }
 
 function showReview(attempt, review, labels) {
@@ -1198,6 +1204,7 @@ function pastCard(outfit) {
   });
   const verdict = outfit.verdict === "pass" ? "matches your pieces" : outfit.verdict === "fail" ? "off in places" : "";
   const about = [STYLES[outfit.style]?.label, when, verdict].filter(Boolean).join(" · ");
+  const fileName = `fitbash-outfit.${EXTENSIONS[outfit.picture.type] ?? "png"}`;
 
   return el("li", { class: "past", "data-outfit": String(outfit.id) }, [
     el(
@@ -1210,6 +1217,12 @@ function pastCard(outfit) {
           ui.viewerPicture.src = url;
           ui.viewerPicture.alt = `Outfit: ${pieces}`;
           ui.viewerCaption.textContent = `${pieces} · ${about}`;
+          // Opened large is where an outfit gets shown to someone: saving and sharing are offered here too.
+          ui.viewerSave.href = url;
+          ui.viewerSave.download = fileName;
+          const file = navigator.canShare ? new File([outfit.picture], fileName, { type: outfit.picture.type }) : null;
+          ui.viewerShare.hidden = !(file && canShare(file));
+          ui.viewerShare.onclick = () => share(file, () => (ui.viewerCaption.textContent = "Sharing didn't work here. Press “Save” instead."));
           ui.viewer.showModal();
         },
       },
@@ -1222,7 +1235,7 @@ function pastCard(outfit) {
       el("a", {
         class: "download",
         href: url,
-        download: `fitbash-outfit.${EXTENSIONS[outfit.picture.type] ?? "png"}`,
+        download: fileName,
         text: "Save",
       }),
       el("button", {

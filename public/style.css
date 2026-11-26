@@ -765,6 +765,13 @@ a {
   margin-bottom: 6px;
 }
 
+/* On a narrow screen the words about the button go under it whole, not half beside it. */
+#local-connect + span,
+#local-app-text {
+  display: inline-block;
+  margin: 6px 0 0 4px;
+}
+
 a.button {
   display: inline-block;
   margin-right: 6px;
@@ -1448,6 +1455,14 @@ a.download:hover {
 .viewer-foot p {
   margin: 0;
   font-size: 0.9rem;
+}
+
+.viewer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-left: auto;
 }
 
 /* ---- small screens and gentler motion ---- */

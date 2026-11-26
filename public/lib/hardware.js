@@ -4,13 +4,13 @@
 // read the graphics card's name, so the guess comes from a table of well-known
 // cards and is only ever a suggestion: the person confirms or corrects it.
 
-/** The answers Setup offers, smallest first. */
+/** The answers Setup offers, smallest first. Each is short enough to be read whole in the list on a phone. */
 export const TIERS = {
-  small: "A graphics card with up to 10 GB of memory",
-  medium: "A graphics card with 12 to 16 GB",
-  large: "A graphics card with 20 GB or more",
-  apple: "A Mac with an Apple chip (M1 or newer)",
-  none: "No separate graphics card, or I'm not sure",
+  small: "Graphics card, up to 10 GB",
+  medium: "Graphics card, 12 to 16 GB",
+  large: "Graphics card, 20 GB or more",
+  apple: "Mac with an Apple chip",
+  none: "No graphics card, or not sure",
 };
 
 // Desktop graphics memory in GB by card name, most specific pattern first.

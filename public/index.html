@@ -19,6 +19,9 @@
     <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#12110f" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <!-- For a phone's home screen: the icon and name a saved shortcut gets. -->
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="preload" href="fonts/instrument-serif-regular.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -346,7 +349,11 @@
       <img id="viewer-picture" alt="" />
       <div class="viewer-foot">
         <p id="viewer-caption"></p>
-        <button id="viewer-close" type="button" class="quiet">Close</button>
+        <span class="viewer-actions">
+          <a id="viewer-save" class="download">Save</a>
+          <button id="viewer-share" type="button" class="quiet" hidden>Share</button>
+          <button id="viewer-close" type="button" class="quiet">Close</button>
+        </span>
       </div>
     </dialog>
 

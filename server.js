@@ -19,6 +19,8 @@ const STATIC_TYPES = {
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
   ".webp": "image/webp",
+  ".png": "image/png",
+  ".webmanifest": "application/manifest+json",
   ".txt": "text/plain; charset=utf-8",
 };
 
