@@ -1031,7 +1031,7 @@ test("a download in the app is picked up again after the page was closed, and a 
   assert.deepEqual(seen.errors, []);
 });
 
-test("who wears the outfit can be chosen for the looks that have a body, and is remembered", options, async (t) => {
+test("who wears the outfit, their build and the setting can be chosen where they apply, and are remembered", options, async (t) => {
   const { page, seen } = await open(t, { context: devices["Pixel 7"], services: {} });
   await page.fill("#provider-key", "GOOD-KEY");
   await addFiles(page, [TEE, JEANS]);
@@ -1040,52 +1040,100 @@ test("who wears the outfit can be chosen for the looks that have a body, and is 
     await page.click("#generate");
     await untilText(page, "#progress", "Done.");
   };
+  const pick = (name, value) => page.check(`input[name="${name}"][value="${value}"]`, { force: true });
+  const shown = () => page.$$eval("#look-choices fieldset:not([hidden]) legend", (legends) => legends.map((legend) => legend.textContent));
+  const anyOfIt = /woman|a man|build|plus-size|street|park/i;
 
-  // A flat lay has nobody in it: the question isn't asked.
-  assert.equal(await page.isHidden("#wearer-choice"), true);
-  await page.check('input[name="style"][value="mannequin"]', { force: true });
-  assert.equal(await page.isVisible("#wearer-choice"), true);
-  assert.deepEqual(await page.$$eval("#wearers label", (labels) => labels.map((label) => label.textContent)), ["Either", "A woman", "A man"]);
-  assert.equal(await page.isChecked('input[name="wearer"][value=""]'), true);
+  // A flat lay has nobody in it and no setting: nothing is asked.
+  assert.deepEqual(await shown(), []);
+  await pick("style", "mannequin");
+  assert.deepEqual(await shown(), ["Worn by", "Build"]);
+  assert.deepEqual(await page.$$eval("#wearer-choice label", (labels) => labels.map((label) => label.textContent)), ["Either", "A woman", "A man"]);
+  assert.deepEqual(await page.$$eval("#build-choice label", (labels) => labels.map((label) => label.textContent)), ["Any", "Slim", "Average", "Plus-size"]);
+  for (const name of ["wearer", "build", "place"]) assert.equal(await page.isChecked(`input[name="${name}"][value=""]`), true, name);
+
+  // Left as they are, nothing is said and the picture model decides, as before.
+  await make();
+  assert.doesNotMatch(said(), anyOfIt);
+  assert.match(said(), /against a plain light studio background\.\n/);
+
+  await pick("wearer", "man");
+  await pick("build", "slim");
+  await make();
+  assert.match(said(), /studio background\. The mannequin has a man's figure\. The mannequin has a slim build\.\n/);
+
+  // A setting is offered for a person, not for a mannequin, and takes the plain backdrop's place.
+  await pick("style", "model");
+  assert.deepEqual(await shown(), ["Worn by", "Build", "Setting"]);
+  assert.deepEqual(await page.$$eval("#place-choice label", (labels) => labels.map((label) => label.textContent)), ["Plain studio", "City street", "Outdoors"]);
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     0,
-    "the choice fits a phone",
+    "the three choices fit a phone",
   );
-
-  // Left at "either", nothing is said and the model decides, as before.
+  await pick("wearer", "woman");
+  await pick("build", "plus");
+  await pick("place", "street");
+  await page.uncheck("#fill");
   await make();
-  assert.doesNotMatch(said(), /woman|a man/i);
+  assert.match(said(), /head-to-toe photo, standing front on in a city street in daylight[^\n]*\. The model is a woman\. The model is plus-size\.\n/);
+  assert.doesNotMatch(said(), /against a plain light background|studio photo/);
 
-  await page.check('input[name="wearer"][value="man"]', { force: true });
+  // Back on a flat lay the choices are put away and not sent.
+  await pick("style", "flatlay");
+  assert.deepEqual(await shown(), []);
   await make();
-  assert.match(said(), /The mannequin has a man's figure\./);
-  await page.check('input[name="style"][value="model"]', { force: true });
-  await page.check('input[name="wearer"][value="woman"]', { force: true });
-  await make();
-  assert.match(said(), /The model is a woman\./);
+  assert.doesNotMatch(said(), anyOfIt);
 
-  // Back on a flat lay the choice is put away and not sent.
-  await page.check('input[name="style"][value="flatlay"]', { force: true });
-  assert.equal(await page.isHidden("#wearer-choice"), true);
-  await make();
-  assert.doesNotMatch(said(), /woman|a man/i);
-
-  // The answer is kept for the next visit.
-  await page.reload();
-  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
-  await page.check('input[name="style"][value="model"]', { force: true });
+  // The next visit starts the way this one was left: the look, the choices and the basics tick,
+  // whichever of them was touched last.
+  const comeBack = async () => {
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  };
+  await pick("style", "model");
+  await pick("build", "average");
+  await page.check("#fill");
+  await comeBack();
+  assert.equal(await page.isChecked('input[name="style"][value="model"]'), true);
+  assert.deepEqual(await shown(), ["Worn by", "Build", "Setting"]);
   assert.equal(await page.isChecked('input[name="wearer"][value="woman"]'), true);
+  assert.equal(await page.isChecked('input[name="build"][value="average"]'), true);
+  assert.equal(await page.isChecked('input[name="place"][value="street"]'), true);
+  assert.equal(await page.isChecked("#fill"), true);
+  await page.uncheck("#fill");
+  await pick("build", "slim");
+  await comeBack();
+  assert.equal(await page.isChecked("#fill"), false);
+  assert.equal(await page.isChecked('input[name="build"][value="slim"]'), true);
+  await pick("build", "average");
 
-  // Using a past outfit again brings back its look and who wore it.
-  await page.check('input[name="wearer"][value=""]', { force: true });
-  await page.check('input[name="style"][value="flatlay"]', { force: true });
+  // Using a past outfit again brings back its look and what was chosen for it.
   await page.locator('.past button:has-text("Use these pieces")').nth(2).click();
   await untilText(page, "#add-status", "Loaded the 2 pieces");
   assert.equal(await page.isChecked('input[name="style"][value="mannequin"]'), true);
-  assert.equal(await page.isVisible("#wearer-choice"), true);
+  assert.deepEqual(await shown(), ["Worn by", "Build"]);
   assert.equal(await page.isChecked('input[name="wearer"][value="man"]'), true);
+  assert.equal(await page.isChecked('input[name="build"][value="slim"]'), true);
   assert.deepEqual(seen.errors, []);
+});
+
+test("a piece without a name gets a quiet tip, which goes once every piece is named", options, async (t) => {
+  const { page } = await open(t, { services: {} });
+  assert.equal(await page.isHidden("#name-hint"), true);
+  await addFiles(page, [TEE, JEANS]);
+  assert.equal(await page.isVisible("#name-hint"), true);
+  assert.match(await text(page, "#name-hint"), /type what each piece is.*helps keep an unusual piece right/s);
+  await page.locator(".item input").nth(0).fill("frog tee");
+  assert.equal(await page.isVisible("#name-hint"), true);
+  await page.locator(".item input").nth(1).fill("blue jeans");
+  assert.equal(await page.isHidden("#name-hint"), true);
+  await page.locator(".item input").nth(1).fill("  ");
+  assert.equal(await page.isVisible("#name-hint"), true);
+  await page.locator(".item .remove").nth(1).click();
+  assert.equal(await page.isHidden("#name-hint"), true);
+  await page.locator(".item .remove").nth(0).click();
+  assert.equal(await page.isHidden("#name-hint"), true);
 });
 
 test("a graphics card smaller than the model gets one extra step, which goes away once it is done", options, async (t) => {

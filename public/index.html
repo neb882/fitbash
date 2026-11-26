@@ -223,6 +223,9 @@
           </form>
         </div>
         <p class="muted tip">Screenshots and photos of clothes you own work too.</p>
+        <p id="name-hint" class="muted tip" hidden>
+          Tip: type what each piece is in the box under its picture. A name helps keep an unusual piece right.
+        </p>
         <p id="add-status" class="status" role="status"></p>
 
         <div id="picker" class="picker" hidden>
@@ -241,10 +244,7 @@
           <div id="styles" class="segments"></div>
         </fieldset>
 
-        <fieldset id="wearer-choice" class="segmented" hidden>
-          <legend class="field-label">Worn by</legend>
-          <div id="wearers" class="segments"></div>
-        </fieldset>
+        <div id="look-choices"></div>
 
         <label class="check">
           <input id="fill" type="checkbox" checked />

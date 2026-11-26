@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildPrompt, STYLES, WEARERS } from "../public/lib/prompt.js";
+import { buildPrompt, STYLES, CHOICES, choiceApplies } from "../public/lib/prompt.js";
 
 const items = [{ label: "frog tee" }, { label: "  " }, {}];
 
@@ -51,29 +51,52 @@ test("an unusual shape is to be kept, not turned into the ordinary version", () 
   }
 });
 
-test("who wears the outfit is said only when chosen, and only where there is a body", () => {
-  // Left alone, the model picks a man or a woman as it sees fit.
-  const ask = (style, wearer) => buildPrompt({ items, style, wearer, fillGaps: true });
-  assert.match(ask("model", "woman"), /standing front on against a plain light background\. The model is a woman\.\n/);
-  assert.match(ask("model", "man"), /The model is a man\./);
-  assert.match(ask("mannequin", "woman"), /plain light studio background\. The mannequin has a woman's figure\.\n/);
-  assert.match(ask("mannequin", "man"), /The mannequin has a man's figure\./);
+test("who wears the outfit and their build are said only when chosen, and only where there is a body", () => {
+  // Left alone, the model picks a man or a woman, and a build, as it sees fit.
+  const ask = (style, chosen = {}) => buildPrompt({ items, style, fillGaps: true, ...chosen });
+  assert.match(ask("model", { wearer: "woman" }), /standing front on against a plain light background\. The model is a woman\.\n/);
+  assert.match(ask("model", { wearer: "man" }), /The model is a man\./);
+  assert.match(ask("mannequin", { wearer: "woman" }), /plain light studio background\. The mannequin has a woman's figure\.\n/);
+  assert.match(ask("mannequin", { wearer: "man" }), /The mannequin has a man's figure\./);
+  assert.match(ask("model", { build: "slim" }), /background\. The model has a slim build\.\n/);
+  assert.match(ask("model", { wearer: "man", build: "plus" }), /background\. The model is a man\. The model is plus-size\.\n/);
+  assert.match(ask("mannequin", { wearer: "woman", build: "average" }), /woman's figure\. The mannequin has an average build\.\n/);
 
-  const unsaid = /is a (wo)?man|(wo)?man's figure/;
+  const unsaid = /is a (wo)?man|(wo)?man's figure|build|plus-size|street|park/;
   for (const style of ["model", "mannequin"]) {
-    assert.doesNotMatch(ask(style, ""), unsaid);
-    assert.doesNotMatch(ask(style, undefined), unsaid);
-    assert.doesNotMatch(ask(style, "robot"), unsaid);
-    assert.ok(ask(style, "").includes(`${STYLES[style].scene}\n`));
+    for (const nothing of [{}, { wearer: "", build: "", place: "" }, { wearer: "robot", build: "giant", place: "moon" }]) {
+      assert.doesNotMatch(ask(style, nothing), unsaid);
+      assert.ok(ask(style, nothing).includes(`${STYLES[style].scene}\n`));
+    }
   }
-  // A flat lay has nobody in it, whatever was chosen for the other looks.
-  assert.doesNotMatch(ask("flatlay", "woman"), unsaid);
-  assert.doesNotMatch(ask("hologram", "man"), unsaid);
+  // A flat lay has nobody in it and no setting, whatever was chosen for the other looks.
+  for (const style of ["flatlay", "hologram"]) {
+    assert.doesNotMatch(ask(style, { wearer: "woman", build: "plus", place: "street" }), unsaid);
+  }
+});
 
-  // The page offers "either" first, and every other choice has a sentence for each worn look.
-  assert.equal(Object.keys(WEARERS)[0], "");
-  for (const [id, wearer] of Object.entries(WEARERS)) {
-    if (!id) continue;
-    for (const [style, look] of Object.entries(STYLES)) assert.equal(typeof wearer[style], look.worn ? "string" : "undefined", `${id} ${style}`);
+test("a setting takes the place of the plain backdrop, for a person only", () => {
+  const ask = (style, place) => buildPrompt({ items, style, place, fillGaps: true });
+  const street = ask("model", "street");
+  assert.match(street, /head-to-toe photo, standing front on in a city street in daylight, the street softly out of focus so the clothes stay the subject\.\n/);
+  assert.doesNotMatch(street, /plain light background|studio/);
+  assert.match(ask("model", "outdoors"), /standing front on outdoors in a park in daylight/);
+  // A shop mannequin stays in the studio.
+  assert.ok(ask("mannequin", "street").includes(`${STYLES.mannequin.scene}\n`));
+});
+
+test("every choice starts with saying nothing, and is offered only where it has words", () => {
+  assert.deepEqual(CHOICES.map((choice) => choice.name), ["wearer", "build", "place"]);
+  for (const choice of CHOICES) {
+    assert.equal(Object.keys(choice.options)[0], "", choice.name);
+    assert.deepEqual(Object.keys(choice.options[""]), ["label"], choice.name);
+    assert.equal(choiceApplies(choice, "flatlay"), false, choice.name);
+    assert.equal(choiceApplies(choice, "model"), true, choice.name);
   }
+  assert.equal(choiceApplies(CHOICES[0], "mannequin"), true);
+  assert.equal(choiceApplies(CHOICES[1], "mannequin"), true);
+  assert.equal(choiceApplies(CHOICES[2], "mannequin"), false);
+  // The scenes proven on the real service are unchanged by being put together from parts.
+  assert.equal(STYLES.model.scene, "Show the pieces worn together by a fashion model in a full-length, head-to-toe studio photo, standing front on against a plain light background.");
+  assert.equal(STYLES.mannequin.scene, "Dress a plain, faceless shop mannequin in the pieces and show it full length, head to toe, front on, against a plain light studio background.");
 });

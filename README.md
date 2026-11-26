@@ -42,9 +42,17 @@ Things worth knowing before you start:
 
 The Google connection has made real pictures (ten on 2026-11-25, through the page as a visitor uses it). The OpenAI and OpenRouter connections were written from those services' documentation and are covered by tests that pin the documented request and response shapes; they have not yet made a real picture, so expect to fix a detail or two on first use.
 
-## Who wears it
+## Who wears it, and where
 
-For the **Mannequin** and **On a model** looks, a **Worn by** choice appears under the look: *Either*, *A woman* or *A man*. Left at *Either*, the picture model decides for itself, which is why the same pieces can come back on a man one time and a woman the next. The page remembers your answer. Checked on Google's model (2026-11-26): four pictures, a woman's and a man's mannequin and a woman and a man as the model, each came out as asked.
+For the **Mannequin** and **On a model** looks, more choices appear under the look. Each starts on an answer that says nothing, so the picture model decides for itself, which is why the same pieces can come back on a man one time and a woman the next.
+
+- **Worn by:** *Either*, *A woman* or *A man*.
+- **Build:** *Any*, *Slim*, *Average* or *Plus-size*.
+- **Setting** (on a model only): *Plain studio*, *City street* or *Outdoors*. The plain studio is the easiest to judge pieces against.
+
+The page remembers these, the look and the "add plain basics" tick for your next visit. While a piece has no name, a tip under the pieces suggests typing one: a name helps the model keep an unusual piece right.
+
+Checked on Google's model (2026-11-26), eight pictures: a woman's and a man's mannequin, a woman and a man as the model, a plus-size woman on a city street, a slim man outdoors, a plus-size mannequin and a plus-size woman in the studio. Each came out as asked, with the pieces, print and lettering kept.
 
 ## Free alternative: a model on your own computer
 

@@ -3,7 +3,7 @@
 // helper server is present it adds product-link lookup.
 
 import { runOutfit } from "./lib/pipeline.js";
-import { STYLES, DEFAULT_STYLE, WEARERS } from "./lib/prompt.js";
+import { STYLES, DEFAULT_STYLE, CHOICES, choiceApplies } from "./lib/prompt.js";
 import { createProvider, PROVIDERS, DEFAULT_PROVIDER, ProviderError } from "./lib/providers/index.js";
 import { createCritic, DEFAULT_CRITIC_MODEL } from "./lib/critic.js";
 import { checkKey } from "./lib/keycheck.js";
@@ -58,8 +58,8 @@ const ui = {
   pickerList: $("picker-list"),
   pickerCancel: $("picker-cancel"),
   styles: $("styles"),
-  wearerChoice: $("wearer-choice"),
-  wearers: $("wearers"),
+  lookChoices: $("look-choices"),
+  nameHint: $("name-hint"),
   fill: $("fill"),
   notes: $("notes"),
   generate: $("generate"),
@@ -133,7 +133,12 @@ const state = {
     localUrl: "",
     localModel: "", // set once a downloaded model on this computer is chosen
     localTier: "",
-    wearer: "", // who wears the outfit in the mannequin and on-a-model looks; "" leaves it to the model
+    // How the last outfit was asked for, so the next visit starts the same way.
+    style: "",
+    fillGaps: true,
+    wearer: "", // this and the next two are the choices in CHOICES; "" leaves it to the model
+    build: "",
+    place: "",
   },
   // What the app on this computer last told us; not saved.
   local: { status: "", models: [], downloading: "", progress: null },
@@ -161,7 +166,8 @@ function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
     for (const key of Object.keys(state.settings)) {
-      if (typeof saved[key] === "string") state.settings[key] = saved[key];
+      // Only a saved value of the kind the page expects is taken (text for text, yes/no for yes/no).
+      if (typeof saved[key] === typeof state.settings[key]) state.settings[key] = saved[key];
     }
   } catch {
     // No storage (private window) or a damaged entry: start from the defaults.
@@ -726,6 +732,7 @@ function renderItems() {
           "aria-label": `Name of piece ${index + 1}`,
           oninput: (event) => {
             item.label = event.target.value;
+            renderNameHint();
           },
         }),
       ]),
@@ -734,7 +741,13 @@ function renderItems() {
   const n = state.items.length;
   ui.empty.hidden = n > 0;
   ui.count.textContent = n ? `${n} of ${MAX_ITEMS}` : "";
+  renderNameHint();
   updateGenerate();
+}
+
+/** A name helps the picture model keep a piece right, most of all an odd one: say so while any piece has none. */
+function renderNameHint() {
+  ui.nameHint.hidden = !state.items.some((item) => !item.label?.trim());
 }
 
 async function addFiles(files) {
@@ -973,7 +986,7 @@ async function generate() {
     const request = {
       items: state.items.map(({ mimeType, data, label, review }) => ({ mimeType, data, label, review })),
       style: chosenStyle(),
-      wearer: chosenWearer(),
+      ...chosenLook(),
       fillGaps: ui.fill.checked,
       notes: ui.notes.value,
     };
@@ -1019,15 +1032,18 @@ let pastUrls = []; // object URLs of the pictures on show, released when the gri
 
 const chosenStyle = () => document.querySelector('input[name="style"]:checked')?.value ?? DEFAULT_STYLE;
 
-/** Who wears the outfit. The instruction uses it only for the looks that have a body. */
-const chosenWearer = () => document.querySelector('input[name="wearer"]:checked')?.value ?? "";
+const chosen = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value ?? "";
 
-function setWearer(id) {
-  for (const input of document.querySelectorAll('input[name="wearer"]')) input.checked = input.value === id;
+/** What was chosen beyond the look (who wears it, build, setting). The instruction uses each only where it applies. */
+const chosenLook = () => Object.fromEntries(CHOICES.map((choice) => [choice.name, chosen(choice.name)]));
+
+function setChoice(name, id) {
+  for (const input of document.querySelectorAll(`input[name="${name}"]`)) input.checked = input.value === id;
 }
 
-function renderWearer() {
-  ui.wearerChoice.hidden = !STYLES[chosenStyle()]?.worn;
+/** Offer each choice only for the looks it has something to say about. */
+function renderLookChoices() {
+  for (const choice of CHOICES) $(`${choice.name}-choice`).hidden = !choiceApplies(choice, chosenStyle());
 }
 
 /** Keep the outfit just made. The picture is already on the page, so a failure here costs nothing. */
@@ -1036,7 +1052,7 @@ async function keepOutfit({ image, review }, request) {
     const picture = new Blob([base64ToBytes(image.data)], { type: image.mimeType });
     const checked = review?.status === "reviewed" ? { verdict: review.verdict, score: review.score } : {};
     await saveOutfit(
-      { picture, labels: request.items.map((item) => item.label ?? ""), style: request.style, wearer: request.wearer, ...checked },
+      { picture, labels: request.items.map((item) => item.label ?? ""), style: request.style, ...Object.fromEntries(CHOICES.map(({ name }) => [name, request[name] ?? ""])), ...checked },
       request.items,
     );
     await renderHistory();
@@ -1129,8 +1145,8 @@ async function reusePieces(outfit) {
   renderItems();
   const look = document.querySelector(`input[name="style"][value="${outfit.style}"]`);
   if (look) look.checked = true;
-  if (outfit.wearer in WEARERS) setWearer(outfit.wearer);
-  renderWearer();
+  for (const { name, options } of CHOICES) if (outfit[name] in options) setChoice(name, outfit[name]);
+  renderLookChoices();
   setAddStatus(`Loaded the ${pieces.length === 1 ? "piece" : `${pieces.length} pieces`} of that outfit. Change what you like and make it again.`);
   $("pieces-heading").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1252,19 +1268,34 @@ async function start() {
       return el("label", {}, [input, el("span", { text: style.label })]);
     }),
   );
-  ui.wearers.replaceChildren(
-    ...Object.entries(WEARERS).map(([id, wearer]) =>
-      el("label", {}, [el("input", { type: "radio", name: "wearer", value: id }), el("span", { text: wearer.label })]),
+  ui.lookChoices.replaceChildren(
+    ...CHOICES.map((choice) =>
+      el("fieldset", { id: `${choice.name}-choice`, class: "segmented", hidden: true }, [
+        el("legend", { class: "field-label", text: choice.label }),
+        el(
+          "div",
+          { class: "segments" },
+          Object.entries(choice.options).map(([id, option]) =>
+            el("label", {}, [el("input", { type: "radio", name: choice.name, value: id }), el("span", { text: option.label })]),
+          ),
+        ),
+      ]),
     ),
   );
-  // Someone making outfits for themselves wants the same answer every time, so it is remembered.
-  setWearer(state.settings.wearer in WEARERS ? state.settings.wearer : "");
-  ui.styles.addEventListener("change", renderWearer);
-  ui.wearers.addEventListener("change", () => {
-    state.settings.wearer = document.querySelector('input[name="wearer"]:checked')?.value ?? "";
+  // Someone making outfits for themselves wants the same answers every time, so they are remembered,
+  // along with the look and whether basics are added.
+  const { settings } = state;
+  if (STYLES[settings.style]) document.querySelector(`input[name="style"][value="${settings.style}"]`).checked = true;
+  ui.fill.checked = settings.fillGaps !== false;
+  for (const { name, options } of CHOICES) setChoice(name, settings[name] in options ? settings[name] : "");
+  const remember = () => {
+    Object.assign(settings, { style: chosenStyle(), fillGaps: ui.fill.checked }, chosenLook());
     saveSettings();
-  });
-  renderWearer();
+  };
+  ui.styles.addEventListener("change", () => (renderLookChoices(), remember()));
+  ui.lookChoices.addEventListener("change", remember);
+  ui.fill.addEventListener("change", remember);
+  renderLookChoices();
   renderItems();
 
   await finishOpenRouterConnect();

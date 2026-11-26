@@ -8,48 +8,87 @@ export const STYLES = {
     scene:
       "Arrange the pieces as a flat lay, the way an outfit is laid out on a bed: seen from directly above on a plain light background, top above bottoms, shoes below or beside the bottoms. Show each piece whole and at its true length and proportions: none cropped, shortened, folded away or lying on top of another.",
   },
+  // The two worn looks are a pose and a backdrop, so that a chosen setting can take the backdrop's place.
   mannequin: {
     label: "Mannequin",
     worn: true,
     aspectRatio: "3:4",
-    scene:
-      "Dress a plain, faceless shop mannequin in the pieces and show it full length, head to toe, front on, against a plain light studio background.",
+    pose: "Dress a plain, faceless shop mannequin in the pieces and show it full length, head to toe, front on,",
+    backdrop: "against a plain light studio background",
   },
   model: {
     label: "On a model",
     worn: true,
     aspectRatio: "3:4",
-    scene:
-      "Show the pieces worn together by a fashion model in a full-length, head-to-toe studio photo, standing front on against a plain light background.",
+    pose: "Show the pieces worn together by a fashion model in a full-length, head-to-toe studio photo, standing front on",
+    backdrop: "against a plain light background",
+    // The same pose where the picture is not a studio one.
+    elsewhere: "Show the pieces worn together by a fashion model in a full-length, head-to-toe photo, standing front on",
   },
 };
+for (const look of Object.values(STYLES)) look.scene ??= `${look.pose} ${look.backdrop}.`;
 
 export const DEFAULT_STYLE = "flatlay";
 
 /**
- * Who wears the outfit in the looks that have a body, with the sentence each look adds.
- * The empty choice says nothing, which leaves it to the model: it then picks as it sees fit.
+ * What the visitor may say about the picture beyond the look. Each choice is offered only for
+ * the looks its options have words for, and its first option, the empty one, says nothing:
+ * the picture then comes out as it always did, with the model deciding.
  */
-export const WEARERS = {
-  "": { label: "Either" },
-  woman: { label: "A woman", mannequin: "The mannequin has a woman's figure.", model: "The model is a woman." },
-  man: { label: "A man", mannequin: "The mannequin has a man's figure.", model: "The model is a man." },
-};
+export const CHOICES = [
+  {
+    name: "wearer",
+    label: "Worn by",
+    options: {
+      "": { label: "Either" },
+      woman: { label: "A woman", mannequin: "The mannequin has a woman's figure.", model: "The model is a woman." },
+      man: { label: "A man", mannequin: "The mannequin has a man's figure.", model: "The model is a man." },
+    },
+  },
+  {
+    name: "build",
+    label: "Build",
+    options: {
+      "": { label: "Any" },
+      slim: { label: "Slim", mannequin: "The mannequin has a slim build.", model: "The model has a slim build." },
+      average: { label: "Average", mannequin: "The mannequin has an average build.", model: "The model has an average, everyday build." },
+      plus: { label: "Plus-size", mannequin: "The mannequin is a plus-size one.", model: "The model is plus-size." },
+    },
+  },
+  {
+    name: "place",
+    label: "Setting",
+    // These take the place of the look's plain backdrop instead of adding a sentence.
+    backdrop: true,
+    options: {
+      "": { label: "Plain studio" },
+      street: { label: "City street", model: "in a city street in daylight, the street softly out of focus so the clothes stay the subject" },
+      outdoors: { label: "Outdoors", model: "outdoors in a park in daylight, the greenery softly out of focus so the clothes stay the subject" },
+    },
+  },
+];
+
+
+/** Whether a choice has anything to offer for a look. */
+export const choiceApplies = (choice, look) => Object.values(choice.options).some((option) => look in option);
 
 /**
  * @param {object} request
  * @param {{label?: string}[]} request.items  one entry per reference picture, in order
  * @param {string} request.style              key of STYLES
- * @param {string} [request.wearer]           key of WEARERS; only the worn looks use it
+ * @param {string} [request.wearer]           and `build`, `place`: one key per entry of CHOICES
  * @param {boolean} request.fillGaps          may the model add basics the user didn't supply
  * @param {string} [request.notes]            free text from the user
  * @param {string} [request.feedback]         what the last attempt got wrong
  */
-export function buildPrompt({ items, style, wearer, fillGaps, notes, feedback }) {
+export function buildPrompt({ items, style, fillGaps, notes, feedback, ...chosen }) {
   const look = STYLES[style] ? style : DEFAULT_STYLE;
-  const { worn = false } = STYLES[look];
-  const who = worn ? WEARERS[wearer]?.[look] : "";
-  const scene = who ? `${STYLES[look].scene} ${who}` : STYLES[look].scene;
+  const { worn = false, elsewhere } = STYLES[look];
+  // What the visitor chose, for this look only: a flat lay has nobody in it and no setting.
+  const said = (choice) => choice.options[chosen[choice.name]]?.[look];
+  const place = CHOICES.filter((choice) => choice.backdrop).map(said).find(Boolean);
+  const extra = CHOICES.filter((choice) => !choice.backdrop).map(said).filter(Boolean);
+  const scene = [place ? `${elsewhere} ${place}.` : STYLES[look].scene, ...extra].join(" ");
 
   const list = items
     .map((item, i) => `${i + 1}. ${item.label?.trim() || "clothing item"}`)

@@ -31,6 +31,8 @@ const { values: options } = parseArgs({
     "check-key-env": { type: "string", default: "FITBASH_TEST_CLAUDE_KEY" },
     looks: { type: "string", default: "flatlay,model" },
     wearer: { type: "string", default: "" }, // woman | man, for the mannequin and on-a-model looks
+    build: { type: "string", default: "" }, // slim | average | plus, for the same two looks
+    place: { type: "string", default: "" }, // street | outdoors, for the on-a-model look
     notes: { type: "string", default: "" },
     site: { type: "string" }, // default: this checkout, served locally
     out: { type: "string", default: path.join(here, "out") },
@@ -177,7 +179,11 @@ try {
       await page.waitForFunction((n) => document.querySelectorAll(".item").length === n, outfit.pieces.length);
       for (const [index, piece] of outfit.pieces.entries()) await page.locator(".item input").nth(index).fill(piece.label);
       await page.check(`input[name="style"][value="${look}"]`, { force: true });
-      if (options.wearer && look !== "flatlay") await page.check(`input[name="wearer"][value="${options.wearer}"]`, { force: true });
+      // Each choice is offered only for the looks it applies to; a hidden one is left alone.
+      for (const name of ["wearer", "build", "place"]) {
+        const choice = page.locator(`#${name}-choice:not([hidden]) input[value="${options[name]}"]`);
+        if (options[name] && (await choice.count())) await choice.check({ force: true });
+      }
       await page.fill("#notes", options.notes);
 
       const started = Date.now();
