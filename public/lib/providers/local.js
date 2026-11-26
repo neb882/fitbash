@@ -61,17 +61,35 @@ export const LOCAL_TIERS = {
 //
 // Lemonade adds --diffusion-fa itself on its Vulkan engine and not on the NVIDIA one.
 const MEMORY_OPTIONS = "--diffusion-fa --offload-to-cpu";
-const NEEDED_OPTION = /(^|\s)--diffusion-fa(\s|$)/;
+
+// A limit on what the engine plans to put on the card, for the one model and kind of card it was
+// measured on (docs/reports/WO-03.md, a 12 GB card). For a one-piece outfit the engine otherwise
+// puts the whole standard model on the card in one block and then wants 2.5 GB of working room
+// beside it: with the owner simply using the computer that failed 5 requests in 8. With an 8 GiB
+// limit the engine splits the work as it already does for several pieces: 5 of 5 with a gigabyte
+// held by another program, at the same speed. The larger model is split anyway and never met this.
+// Not measured: any other card, so no other card is given the option.
+const ROOM_OPTIONS = { "Flux-2-Klein-4B": { medium: "--max-vram 8" } };
+
+const saved = (model, option) => new RegExp(`(^|\\s)${option}(\\s|$)`).test(model.savedOptions ?? "");
 
 /**
- * The line to paste into a terminal so the app's picture engine can make an outfit of more
- * than one piece, or null when it doesn't apply to this model or has been done.
+ * The line to paste into a terminal before the app's picture engine can be relied on, as
+ * { command, lacks }, or null when it doesn't apply to this model or has been done.
+ *
+ *   lacks "pieces"  --diffusion-fa is not saved: an outfit of two pieces or more runs out of memory
+ *   lacks "room"    that is saved, but not the limit this model wants on this kind of card:
+ *                   a one-piece outfit fails while other programs are using the card
  */
-export function localMemoryCommand(model) {
-  if (model?.recipe !== "sd-cpp" || model.memorySaving) return null;
+export function localEngineStep(model, tier) {
+  if (model?.recipe !== "sd-cpp") return null;
   // The name comes from the app and ends up in a terminal: only plain names are passed on.
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(model.id)) return null;
-  return `lemonade load ${model.id} --sdcpp-args "${MEMORY_OPTIONS}" --save-options`;
+  const room = ROOM_OPTIONS[model.id]?.[tier] ?? "";
+  const lacks = !saved(model, "--diffusion-fa") ? "pieces" : room && !saved(model, "--max-vram") ? "room" : null;
+  if (!lacks) return null;
+  const options = [MEMORY_OPTIONS, room].filter(Boolean).join(" ");
+  return { lacks, command: `lemonade load ${model.id} --sdcpp-args "${options}" --save-options` };
 }
 
 /**
@@ -175,9 +193,9 @@ export function createLocalProvider({ baseUrl, model, fetchImpl = fetch, random 
  * Look for the local app and list the models it has that can combine several pictures.
  *
  * Resolves to one of:
- *   { status: "connected", models: [{ id, sizeGb, downloaded, recipe, memorySaving }] }
+ *   { status: "connected", models: [{ id, sizeGb, downloaded, recipe, savedOptions }] }
  *     recipe        which engine inside the app runs the model ("sd-cpp"), or null when it doesn't say
- *     memorySaving  the app already starts this model with the option it needs (localMemoryCommand())
+ *     savedOptions  the engine options saved for the model in the app, as typed; "" when there are none
  *   { status: "refused" }      the app is running but doesn't accept requests from this website
  *   { status: "unreachable" }  nothing answered: not installed, not open, or the browser blocked it
  */
@@ -219,7 +237,7 @@ export async function findLocalModels(baseUrl, { fetchImpl = fetch } = {}) {
       downloaded: entry.downloaded !== false,
       recipe: typeof entry.recipe === "string" ? entry.recipe : null,
       // The saved options, exactly as they were typed; a model nobody saved any for has no such key.
-      memorySaving: NEEDED_OPTION.test(String(entry.recipe_options?.sdcpp_args ?? "")),
+      savedOptions: typeof entry.recipe_options?.sdcpp_args === "string" ? entry.recipe_options.sdcpp_args : "",
     }));
   return { status: "connected", models };
 }

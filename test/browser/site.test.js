@@ -1245,6 +1245,27 @@ test("the picture engine's one more step is shown for any graphics card, and goe
   await page.click("#local-connect");
   await page.waitForSelector("#local-memory", { state: "hidden" });
   assert.equal(await text(page, "#local-status"), "Connected and ready.");
+
+  // The standard model on a 12 to 16 GB card wants one option more, measured on a real 12 GB card. Someone
+  // who did the step before that was known is shown it again, with its own reason and the whole line.
+  await page.selectOption("#local-tier", "medium");
+  await page.waitForSelector("#local-memory:not([hidden])");
+  assert.equal(await page.inputValue("#local-model"), "Flux-2-Klein-4B");
+  assert.equal(
+    await text(page, "#local-memory-why"),
+    "One more step for this graphics card, done once. Without it a one-piece outfit often fails while other programs are using the card:",
+  );
+  assert.equal(
+    await text(page, "#local-memory-command"),
+    'lemonade load Flux-2-Klein-4B --sdcpp-args "--diffusion-fa --offload-to-cpu --max-vram 8" --save-options',
+  );
+  // A larger or smaller card is not given an option nobody measured there.
+  await page.selectOption("#local-tier", "large");
+  assert.equal(await page.isHidden("#local-memory"), true);
+  await page.selectOption("#local-tier", "medium");
+  save("--diffusion-fa --offload-to-cpu --max-vram 8");
+  await page.click("#local-connect");
+  await page.waitForSelector("#local-memory", { state: "hidden" });
 });
 
 test("a local picture that fails says what to try, and points to the one more step while it is still to do", options, async (t) => {
