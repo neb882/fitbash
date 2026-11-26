@@ -13,8 +13,8 @@
         "WO-04"
       ],
       "rounds": 2,
-      "status": "open",
-      "so_far": "Settled: --diffusion-fa is what the engine needs on any card; the two option sets fail alike on one piece; and the engine's --max-vram 8 cures the one-piece failure for the standard model on a 12 GB card (WO-03: 5 of 5 with a gigabyte held, 5 of 5 on the published site straight after the saved options failed 5 in 8, same seconds). Round 2: Setup's line for Flux-2-Klein-4B on a 12 to 16 GB card is now --diffusion-fa --offload-to-cpu --max-vram 8, and someone with only the first two saved is shown the step again with its reason. No other card or model is given the option, since none was measured. WO-04 confirms it on the published site; this is the second of three rounds. To weigh afterwards: with --offload-to-cpu the whole model sits in ordinary memory (15.2 GB standard, 17.6 GB larger), which a 16 GB computer may not have."
+      "status": "closed",
+      "outcome": "Three things, each confirmed on the published site against the real app. (1) --diffusion-fa is what the picture engine needs on any card; Setup shows the step for every kind of computer and puts it away once it is saved (WO-01, WO-02). (2) The line saves --diffusion-fa --offload-to-cpu; the two option sets fail alike on one piece, so nothing argues for dropping the second (WO-02). (3) For the standard model on a 12 to 16 GB card the line also saves --max-vram 8, which makes the engine split a one-piece outfit: 13 made in 13 where the two options alone had failed 5 in 8 (WO-03, WO-04). Not measured, and so not acted on: any other card, any other value, the larger model with a limit, and how much ordinary memory --offload-to-cpu needs on a 16 GB computer."
     },
     {
       "id": "G2",
@@ -82,14 +82,43 @@
       "rounds": 1,
       "status": "closed",
       "outcome": "WO-03 confirmed it on the published site and in the checkout: with the instruction naming the added pieces, 28 one-piece pictures in 28 (24 from the standard model, 4 from the larger) showed whole, plain, full-length trousers and plain shoes, against 4 malformed in 11 before."
+    },
+    {
+      "id": "G8",
+      "name": "Odd shapes on a local model",
+      "decides": "Whether naming a piece, or a note, makes a local model keep an unusual shape, or whether that is the model's limit and the page should say so",
+      "orders": [
+        "WO-05"
+      ],
+      "rounds": 0,
+      "status": "open",
+      "so_far": "Both local models made the oversized clown shoes ordinary-sized in every picture they are in, across WO-01 to WO-04, with the instruction's sentence about unusual shapes in place. On Google's model that sentence fixed it and a name helped."
+    },
+    {
+      "id": "G9",
+      "name": "The new flat lay wording on a local model",
+      "decides": "Whether the flat lay sentence rewritten for Google's model (bare background around every piece, front side up, unfolded) also gives a clean flat lay on a local model",
+      "orders": [
+        "WO-05"
+      ],
+      "rounds": 0,
+      "status": "open",
+      "so_far": "No flat lay has been made on a local model yet: every worker run so far used the look 'on a model'."
     }
   ],
-  "in_flight": [],
+  "in_flight": [
+    {
+      "order": "WO-05",
+      "with": "the worker on the owner's computer",
+      "sent": "2026-11-26",
+      "report": "docs/reports/WO-05.md on the branch gpu-findings"
+    }
+  ],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
     "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
-    "A shorter instruction for local models: they lost odd shapes (the clown shoes in every picture) and sometimes added jewellery. Naming the added pieces outright fixed the bottoms, so plainer, more literal wording may help here too. A work order after WO-04.",
-    "--max-vram for cards that were not measured: an 11 GB card is likely the most fragile of all, and nothing is known for 8, 16 or 24 GB. Needs other hardware, which the worker does not have."
+    "--max-vram for cards that were not measured: an 11 GB card is likely the most fragile of all, and nothing is known for 8, 16 or 24 GB. Needs other hardware, which the worker does not have.",
+    "The Claude check has never run with a real key. It needs the owner's Anthropic key through the secure form; the plan is to run it against real pictures with known faults (shoes shrunk, pieces folded, a cropped head) and against good ones."
   ],
   "dead_ends": [
     "--offload-to-cpu on its own as the memory step: on a 12 GB card it failed every outfit of two to four pieces, exactly as no options did (WO-01).",

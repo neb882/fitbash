@@ -38,8 +38,18 @@ test("an unknown style falls back to the default scene", () => {
 test("a flat lay is upright and asks for every piece whole", () => {
   // Seen with the real service: in a square frame the jeans came out shortened, with the shoes laid on top.
   assert.equal(STYLES.flatlay.aspectRatio, "3:4");
-  assert.match(STYLES.flatlay.scene, /whole and at its true length/);
-  assert.match(STYLES.flatlay.scene, /lying on top of another/);
+  // Seen with eight pieces once they were kept apart: jeans turned over with a leg folded, a tee folded short.
+  assert.match(STYLES.flatlay.scene, /whole, front side up, laid out straight and at its true length and proportions: none cropped, shortened, folded or turned over\./);
+  // Seen again with eight pieces, and with boots: a jacket over the tee, shoes on the jeans' hems.
+  assert.match(STYLES.flatlay.scene, /shoes beside the lower legs of the bottoms\./);
+  assert.match(STYLES.flatlay.scene, /bare background around every piece, shoes and outer layers included, so that no piece touches or covers any part of another/);
+});
+
+test("a person in a reference picture lends the item and nothing else", () => {
+  // Seen with the real service: a shirt given as a mirror selfie came back on a model with that man's face and hair.
+  for (const style of Object.keys(STYLES)) {
+    assert.match(buildPrompt({ items, style, fillGaps: true }), /take the item only: never copy that person's face, hair, body or pose\./);
+  }
 });
 
 test("an unusual shape is to be kept, not turned into the ordinary version", () => {

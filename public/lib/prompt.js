@@ -6,7 +6,7 @@ export const STYLES = {
     // Upright, so a top, bottoms and shoes each have room at their true length.
     aspectRatio: "3:4",
     scene:
-      "Arrange the pieces as a flat lay, the way an outfit is laid out on a bed: seen from directly above on a plain light background, top above bottoms, shoes below or beside the bottoms. Show each piece whole and at its true length and proportions: none cropped, shortened, folded away or lying on top of another.",
+      "Arrange the pieces as a flat lay, the way an outfit is laid out on a bed: seen from directly above on a plain light background, top above bottoms, shoes beside the lower legs of the bottoms. Leave a strip of bare background around every piece, shoes and outer layers included, so that no piece touches or covers any part of another; make every piece smaller if that is what it takes. Show each piece whole, front side up, laid out straight and at its true length and proportions: none cropped, shortened, folded or turned over.",
   },
   // The two worn looks are a pose and a backdrop, so that a chosen setting can take the backdrop's place.
   mannequin: {
@@ -107,7 +107,9 @@ export function buildPrompt({ items, style, fillGaps, notes, feedback, ...chosen
     `The reference pictures, in order:\n${list}`,
     scene,
     [
-      "Each reference picture shows one item to include. Use only the item itself: ignore any background, person, hanger, watermark or price tag around it.",
+      // The second sentence: seen with the real service, a shirt given as a mirror selfie came back
+      // worn by a model with the face and hair of the man in the selfie.
+      "Each reference picture shows one item to include. Use only the item itself: ignore any background, person, hanger, watermark or price tag around it. If a reference picture shows a person wearing the item, take the item only: never copy that person's face, hair, body or pose.",
       "Show every supplied item exactly once.",
       "Keep each item true to its picture: the same colors, cut, fabric, and any print, logo or lettering reproduced as it appears there. People will use this picture to decide whether these exact pieces go together, so a changed print or color makes it useless.",
       "Keep each item's own shape and proportions as well, however unusual. An item that is oversized, extra wide, extra long or exaggerated in its picture stays exactly that large and that shape here: never slim it down, shorten it or turn it into the ordinary version of that kind of item.",
