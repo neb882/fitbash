@@ -6,7 +6,9 @@
       "id": "G1",
       "name": "The memory step",
       "decides": "Which line Setup shows for a graphics card smaller than the model, and for which cards",
-      "orders": ["WO-01"],
+      "orders": [
+        "WO-01"
+      ],
       "rounds": 0,
       "status": "open"
     },
@@ -14,7 +16,9 @@
       "id": "G2",
       "name": "Knowing the step is done",
       "decides": "Which field of the app's model list shows the saved options, so Setup can put the step away",
-      "orders": ["WO-01"],
+      "orders": [
+        "WO-01"
+      ],
       "rounds": 0,
       "status": "open"
     },
@@ -22,7 +26,9 @@
       "id": "G3",
       "name": "The download readout",
       "decides": "Whether Setup's size, speed and time left match the app's own window",
-      "orders": ["WO-01"],
+      "orders": [
+        "WO-01"
+      ],
       "rounds": 0,
       "status": "open"
     },
@@ -30,7 +36,9 @@
       "id": "G4",
       "name": "What a local model keeps",
       "decides": "How many pieces it keeps faithfully, and what Setup and the README should promise",
-      "orders": ["WO-01"],
+      "orders": [
+        "WO-01"
+      ],
       "rounds": 0,
       "status": "open"
     },
@@ -38,24 +46,15 @@
       "id": "G5",
       "name": "The larger model",
       "decides": "Whether Flux-2-Klein-9B-GGUF is worth suggesting, and for which cards",
-      "orders": ["WO-01"],
+      "orders": [
+        "WO-01"
+      ],
       "rounds": 0,
       "status": "open"
     }
   ],
-  "in_flight": [
-    {
-      "order": "WO-01",
-      "with": "the worker on the owner's computer",
-      "sent": "2026-11-26",
-      "report": "docs/reports/WO-01.md on the branch gpu-findings"
-    }
-  ],
+  "in_flight": [],
   "next": [],
   "dead_ends": [],
-  "open_questions": [],
-  "seen_not_yet_reported": [
-    "In the worker's chat, 2026-11-26: with both memory options a one-piece outfit failed three times out of four while two to four pieces worked; with --diffusion-fa alone one, three and four pieces all worked; with neither, three pieces failed.",
-    "In the worker's chat, 2026-11-26: the page's download readout and the app's window agreed once units were accounted for (the page counts in GB, the app's window in GiB)."
-  ]
+  "open_questions": []
 }

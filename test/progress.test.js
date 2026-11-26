@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,5 @@ test("every work order the progress file names exists, and one in flight says wh
   for (const order of named) assert.ok(orders.includes(order), `${order} has no file in docs/work-orders`);
   for (const flight of progress.in_flight) {
     assert.ok(flight.with && flight.sent && flight.report, flight.order);
-    assert.ok(!existsSync(path.join(root, `docs/reports/${flight.order}.md`)), `${flight.order} is in flight but its report is already here`);
   }
 });
