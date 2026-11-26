@@ -51,7 +51,7 @@ To have the Claude check take part, give its key the same way (`--check-key-env`
 
 ## A model on the owner's own computer
 
-This needs a session that runs on that computer (the graphics card is there), with Lemonade open and the model downloaded. A cloud session cannot reach it.
+This needs a session that runs on that computer (the graphics card is there), with Lemonade open and the model downloaded. A cloud session cannot reach it. When that session works alongside the cloud session that builds the page, `docs/PIPELINE.md` says how, and its jobs come as work orders in `docs/work-orders/`.
 
 ```sh
 npm ci

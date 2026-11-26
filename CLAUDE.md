@@ -61,6 +61,7 @@ The split is by the kind of work, as in the owner's other projects. The model is
 - **The middle model where a test can say whether the work is right:** a change whose checks are written down before it starts.
 - **The strongest model where judgment is the only check:** what to build, anything touching `src/safe-fetch.js`, the content security policy or how keys are handled, and the last read of a diff before it reaches `main`.
 - The main session does the work itself unless it is one of the above and can run alongside. fitbash is small: don't add builder, reviewer and skeptic roles until a change needs several work orders at once.
+- **The graphics card is the one thing the main session cannot reach,** so one worker exists for it: a session on the owner's computer that measures against the real local app and reports. `docs/PIPELINE.md` is how the two work together, `docs/QUEUE.md` is where things stand, and a session that finds itself on the owner's computer reads both before anything else. The worker measures; the main session decides and changes the code.
 - **The check inside the page is a judgment role too:** nothing checks its verdict, and a missed print defect is the failure it exists to catch. Cut its cost with smaller inputs first (it already gets 1024-pixel references). Change its default model or effort only after comparing the candidates on real outfit pictures with known defects.
 
 ## Usage

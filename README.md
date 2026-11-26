@@ -146,6 +146,8 @@ src/extract.js               product link to candidate pictures
 src/safe-fetch.js            fetching pasted links without reaching private networks
 test/                        unit tests for all of the above
 test/browser/                the page driven in a real browser
+docs/PIPELINE.md             how the cloud session and the session on the owner's graphics card work together
+docs/QUEUE.md                what they are finding out and where it stands; work orders and reports sit beside it
 .github/workflows/test.yml   runs every test on each push
 .github/workflows/pages.yml  runs the tests, stamps the version, then publishes public/ to GitHub Pages
 scripts/stamp-version.sh     writes a fingerprint of the site's files into the page and the service worker
