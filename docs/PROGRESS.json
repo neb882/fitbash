@@ -106,14 +106,31 @@
       "rounds": 2,
       "status": "closed",
       "outcome": "Three orders on the published site (WO-05, WO-06, WO-07; 39 flat lays and comparison pictures on the 12 GB card). What was fixed: the trousers and other shoes nobody supplied came from the sentence that lets the model add missing basics (5 flat lays of 6 with it, 0 of 12 without); the page now reads the pieces' names and offers basics only for what they leave open, and WO-07 confirmed the one new sentence on the card: with only shoes missing, shoes added and no trousers in 4 of 4, where the old sentence drew trousers under supplied jeans in 1 of 2. What was not: the pieces lie on each other (5 of 6, and 4 of 4 with a note about gaps); the standard model draws more shoes than the supplied pair in 4 of 5 and the larger in 1 of 7; added shoes came as two pairs in 1 of 4. These are taken as the models' limit for flat lays. The page says, with a flat lay on a local model, that 'On a model' keeps the pieces best, and no other wording will be tried. Not run: only shoes named (the sentence for missing bottoms), and names the page does not recognise."
+    },
+    {
+      "id": "G10",
+      "name": "The Claude check with a real key",
+      "decides": "Whether the optional check works from the page, catches real faults and passes good pictures, and what it costs; and so whether its instructions or the page's sentence about its cost change",
+      "orders": [
+        "WO-08"
+      ],
+      "rounds": 0,
+      "status": "open",
+      "so_far": "Never run with a real key. The owner added an Anthropic key to the fitbash environment as the variable FITBASH_TEST_CLAUDE_KEY (2026-11-26; the secure form cannot hold a key for Anthropic's hosts). A session that was already running does not see it, so WO-08 goes to a new cloud session: one run through the page, then the check run directly on 4 good pictures and 10 with one known fault each, twice each."
     }
   ],
-  "in_flight": [],
+  "in_flight": [
+    {
+      "order": "WO-08",
+      "with": "a cloud session started for it on the fitbash environment",
+      "sent": "2026-11-26",
+      "report": "docs/reports/WO-08.md on the branch check-findings"
+    }
+  ],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
     "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
     "--max-vram for cards that were not measured: an 11 GB card is likely the most fragile of all, and nothing is known for 8, 16 or 24 GB. Needs other hardware, which the worker does not have.",
-    "The Claude check has never run with a real key. The secure form cannot hold an Anthropic key, so it needs the owner to add one as an environment variable (FITBASH_TEST_CLAUDE_KEY) in the fitbash environment's settings; a new session then sees it. The owner has said a new session is fine. The plan is to run the check against real pictures with known faults (shoes shrunk, pieces folded, a cropped head) and against good ones.",
     "The standard local model added a wristwatch in 2 of its 4 'on a model' pictures in WO-05, against the instruction's 'no hats, bags, watches, jewellery'. Small beside a lost piece; look at it if a later order makes pictures on a model anyway.",
     "The standard local model drew the supplied shoes as three shoes in 3 flat lays of 4 (WO-06), past 'Show every supplied item exactly once'. Flat lays there are already advised against; not worth an order on its own."
   ],

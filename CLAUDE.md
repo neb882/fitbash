@@ -50,7 +50,7 @@ Most rules give their reason in brackets, so a rule can be dropped once its reas
 `test/real/README.md` is the procedure, and `test/real/run.mjs` does the run: it uses the page in a browser as a visitor would and saves every picture with what the service answered. Read the procedure before the first run of a session.
 
 - It spends the owner's money. Say how many pictures a run will make before starting it, and keep to the runner's limit.
-- A key reaches a session only through the secure credential form, never through chat, a file, a command line or a commit.
+- A key reaches a session only through the secure credential form, never through chat, a file, a command line or a commit. The one exception is an Anthropic key, which the form cannot hold: the owner puts it in the environment's settings as the variable `FITBASH_TEST_CLAUDE_KEY`, and it is read from there and never printed.
 - Photos of real clothes and the pictures made from them stay in `test/real/pieces/` and `test/real/out/`, which git ignores. [They are the owner's, and may show people.]
 - What the real service answered outranks its documentation: when they differ, fix the code to the answer and pin it in a unit test. [The first real request showed Google wrapping its errors in a list, which no page read had said.]
 

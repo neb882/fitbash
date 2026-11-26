@@ -12,6 +12,10 @@ between them. Most rules give their reason in brackets, so a rule can be dropped
 | orchestrator | the cloud session that builds fitbash | decides what needs finding out, writes the work orders, changes the code, runs the tests, pushes `main`, reads CI and the published site, merges the worker's reports, closes goals | asks the worker for something a test in the cloud can settle |
 | worker | a session on the owner's computer, in its own checkout | runs one work order at a time against the real app and card, measures, looks at every picture, writes the report | edits `public/`, `src/` or the tests; pushes to `main`; decides what the page should do |
 
+A job that needs something else the orchestrator's session lacks goes the same way: its own work order, its
+own branch for the report, a session started for it. The Claude check was the first (WO-08, branch
+`check-findings`): the key for it is an environment variable that only a newly started session can see.
+
 The orchestrator is the only one who changes what a visitor gets. [One place decides, so two sessions never
 "fix" the same thing in different ways.]
 
