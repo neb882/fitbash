@@ -158,6 +158,11 @@ test("a visitor who comes back after an update gets the new version at once, wit
   // A second load, under the worker's control, so that the worker holds its own copy of the old page.
   await earlier.reload();
   await earlier.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  // The visitor comes back later, not the same second. About a second after a page loads the browser looks
+  // for a newer worker, once; a return visit that lands while that look is under way gets no look of its own,
+  // so the look finds the old version and the new worker never takes over. Seen on CI and reproduced here:
+  // with the two visits back to back this test failed now and then (once on CI, once in three runs here).
+  await earlier.waitForTimeout(2500);
   await earlier.close();
 
   live = second;
