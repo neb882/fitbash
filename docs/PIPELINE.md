@@ -91,6 +91,12 @@ If the order is unclear or needs a decision it doesn't make, the worker stops an
 
 - When the worker's message arrives; otherwise at most 50 minutes apart, never in a tight loop. [The
   orchestrator's own context is kept ready for an hour; a later check-in costs many times as much.]
+- The wake-up is a watcher inside the orchestrator's own session: a background command that asks the remote
+  once a minute for the head of `gpu-findings` and ends when it has moved, or after 50 minutes. Its ending
+  starts the check-in. A scheduled message is not used. [Once the owner had allowed the orchestrator to message
+  a session on their computer, the orchestrator became limited to their trusted devices, and its scheduled
+  check-in was refused with "access denied": the 2026-11-26 01:03 UTC one never ran. A running watcher also
+  keeps the orchestrator's machine from being given back while it waits.]
 - Each check-in: the worker session's state; fetch `gpu-findings`; act on what is there; set the next check-in.
 - It works from commits and their times, not from when something was expected.
 - The worker has stalled when it has been idle for 50 minutes with no report and no question. The orchestrator

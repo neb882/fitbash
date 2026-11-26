@@ -95,7 +95,9 @@ export function buildPrompt({ items, style, fillGaps, notes, feedback, ...chosen
     .join("\n");
 
   const extras = fillGaps
-    ? "If the outfit cannot be complete without a piece that is missing (bottoms or shoes), add a plain one in a neutral color that suits the rest, and keep it understated so the supplied items stay the focus. Add nothing beyond that: no hats, bags, watches, jewellery, belts or other accessories that weren't supplied."
+    ? // The added piece is named outright. Seen with a local model: left to choose "a plain one", it gave
+      // a lone shirt shorts with separate lower legs in 4 pictures out of 11.
+      "If the outfit cannot be complete without a piece that is missing (bottoms or shoes), add it: plain full-length trousers, or a plain pair of ordinary shoes, in a neutral color that suits the rest and understated so the supplied items stay the focus. Add nothing beyond that: no hats, bags, watches, jewellery, belts or other accessories that weren't supplied."
     : worn
       ? "Don't add statement pieces or accessories that aren't in the reference pictures. Where no item was supplied, cover the body with the plainest neutral basics so the figure is fully dressed."
       : "Show only the supplied items. Don't add clothing or accessories that aren't in the reference pictures.";

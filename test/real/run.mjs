@@ -105,7 +105,11 @@ const shorten = (value) =>
         : value;
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE || undefined });
-const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+// A browser asks before a website may reach an app on the computer, and with no window there is
+// nobody to answer: allow it for the published site, as a visitor does by choosing Allow.
+if (options.site) await context.grantPermissions(["local-network-access"], { origin: new URL(options.site).origin }).catch(() => {});
+const page = await context.newPage();
 const answers = []; // what the services answered during the current outfit
 const failures = [];
 page.on("pageerror", (error) => failures.push(`page error: ${error.message}`));

@@ -8,11 +8,12 @@
       "decides": "Which line Setup shows for a graphics card smaller than the model, and for which cards",
       "orders": [
         "WO-01",
-        "WO-02"
+        "WO-02",
+        "WO-03"
       ],
       "rounds": 1,
       "status": "open",
-      "so_far": "WO-01: --diffusion-fa is the option the engine needs, on any card (two pieces ask for 16.7 GB of card memory without it, four for 41.7 GB); --offload-to-cpu alone fixes nothing. Setup now shows the step for every card, keeps the line with both options (the one the owner ran; a little faster on several pieces and leaves the card freer), and counts the step as done when --diffusion-fa is saved. Still open: whether one option set is safer than the other for a one-piece outfit when other programs hold part of the card. WO-02 measures that and confirms the change on the published site. One more thing to weigh when WO-02 is in: with --offload-to-cpu the whole model sits in ordinary memory (15.2 GB for the standard model, 17.6 GB for the larger), which a computer with 16 GB may not have; --diffusion-fa alone keeps about half of it there."
+      "so_far": "Settled: --diffusion-fa is what the engine needs on any card, Setup's line stays --diffusion-fa --offload-to-cpu, and the step shows and goes correctly on the published site (WO-01, WO-02). Settled: the two option sets fail alike on a one-piece outfit when another program holds part of the card (18 of 20 with 0.5 or 1 GB held, WO-02), so the choice between them does not rest on that. Still open, and the reason for WO-03: a one-piece outfit fails on a 12 GB card with as little as half a gigabyte more in use than usual, because for one piece the engine puts the whole model on the card as one block and then needs 2.47 GB of working room. WO-03 tries the engine's own options for limiting what it puts on the card. To weigh at the end: with --offload-to-cpu the whole model sits in ordinary memory (15.2 GB for the standard model, 17.6 GB for the larger), which a computer with 16 GB may not have."
     },
     {
       "id": "G2",
@@ -23,8 +24,8 @@
         "WO-02"
       ],
       "rounds": 1,
-      "status": "open",
-      "so_far": "WO-01: the saved options are in recipe_options.sdcpp_args of /v1/models?show_all=true, as the page assumed; a model nobody saved options for has no such key. The real entry is pinned in test/local.test.js. WO-02 confirms on the published site that the step shows for a model without it and goes once it is saved."
+      "status": "closed",
+      "outcome": "WO-02 confirmed it on the published site against the real app: the step is hidden for a model with --diffusion-fa saved, shown for one without under every kind of computer, and gone once its line has been run and Connect pressed. The app's real model-list entry is pinned in test/local.test.js."
     },
     {
       "id": "G3",
@@ -67,21 +68,44 @@
         "WO-02"
       ],
       "rounds": 1,
+      "status": "closed",
+      "outcome": "WO-02 confirmed it on the published site: three requests for one outfit gave three files, three seeds in the engine's log and three pictures that differ to the eye."
+    },
+    {
+      "id": "G7",
+      "name": "Bottoms added to a lone top",
+      "decides": "Whether naming the added pieces outright stops a local model inventing malformed bottoms",
+      "orders": [
+        "WO-03"
+      ],
+      "rounds": 1,
       "status": "open",
-      "so_far": "WO-01 found the app uses one seed for everything, so the same pieces gave the same file. The page now sends a seed of its own with each request. WO-02 confirms two requests give two pictures."
+      "so_far": "WO-02 found shorts with separate lower legs in 4 of 11 one-piece pictures from the standard local model. The instruction now names what to add (plain full-length trousers, a plain pair of ordinary shoes) instead of 'a plain one'. Google's model handled the new wording on a lone tee, on a model and as a flat lay. WO-03 counts the fault on the real card."
     }
   ],
-  "in_flight": [],
+  "in_flight": [
+    {
+      "order": "WO-03",
+      "with": "the worker on the owner's computer",
+      "sent": "2026-11-26",
+      "report": "docs/reports/WO-03.md on the branch gpu-findings"
+    }
+  ],
   "next": [
-    "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. A line saying the app is between files would help; it can only be confirmed during a real download, so it waits for the next one.",
-    "A shorter instruction for local models: they added jewellery and lost odd shapes despite the instruction saying otherwise. Whether fewer words are followed better is a question for a work order after WO-02."
+    "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
+    "A shorter instruction for local models: they lost odd shapes and added jewellery despite the instruction. Whether fewer words are followed better is a question for a work order after WO-03.",
+    "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup."
   ],
   "dead_ends": [
     "--offload-to-cpu on its own as the memory step: on a 12 GB card it failed every outfit of two to four pieces, exactly as no options did (WO-01).",
-    "\"Try again with fewer pieces\" as advice for a failed local picture: with the card nearly full, one piece was the outfit that failed and adding a second made it work (WO-01)."
+    "\"Try again with fewer pieces\" as advice for a failed local picture: with the card nearly full, one piece was the outfit that failed and adding a second made it work (WO-01).",
+    "Choosing between --diffusion-fa alone and both options to make a one-piece outfit safer: with part of the card held they fail alike, for the same stated reason (WO-02)."
   ],
   "open_questions": [],
   "owner_priorities": [
     "2026-11-26: quality is the priority. Where faithfulness to the pieces trades against speed, download size or a few cents, choose faithfulness (CLAUDE.md, Rules)."
+  ],
+  "for_the_owner": [
+    "WO-02, surprise 7: the worker started LM Studio's background service by mistake (it ran LM Studio's command-line tool to list models) and its attempt to close it was refused. It is still running on the owner's computer; quitting LM Studio closes it."
   ]
 }

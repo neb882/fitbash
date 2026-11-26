@@ -17,7 +17,8 @@ test("fill-gaps and worn styles change the rule about extra pieces", () => {
   const filled = buildPrompt({ items, style: "model", fillGaps: true });
   assert.match(strictFlat, /Show only the supplied items/);
   assert.match(strictWorn, /fully dressed/);
-  assert.match(filled, /add a plain one/);
+  // Seen with a local model: asked for "a plain one", it gave a lone shirt shorts with separate lower legs.
+  assert.match(filled, /add it: plain full-length trousers, or a plain pair of ordinary shoes, in a neutral color/);
   // Seen with the real service: left to itself it dressed a lone tee with a cap and a watch.
   assert.match(filled, /no hats, bags, watches/);
 });
