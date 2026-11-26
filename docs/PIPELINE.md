@@ -17,9 +17,11 @@ The orchestrator is the only one who changes what a visitor gets. [One place dec
 
 ## State lives in the repository, not in the chat
 
-- `docs/QUEUE.md`: the goals, their work orders and where each stands. Either session reads it first after a
-  restart or when its memory of the conversation has been cut short. [A long chat is summarised sooner or later,
-  and a summary loses exactly the detail the next step needs.]
+- `docs/PROGRESS.json`: the goals and where each stands, what is `in_flight` (which order, with whom, where its
+  report will be), what comes `next`, the `dead_ends` nobody should try again, and the `open_questions` waiting
+  for the owner. Either session reads it first after a restart or when its memory of the conversation has been
+  cut short. Only the orchestrator edits it, and a test holds its shape. [A long chat is summarised sooner or
+  later, and a summary loses exactly the detail the next step needs.]
 - `docs/work-orders/WO-NN-name.md`: one file per job. It is the worker's whole brief.
 - `docs/reports/WO-NN.md`: the worker's results, pushed to the branch `gpu-findings`.
 - Messages between the sessions only point at these files. [Results retold from message to message lose something
@@ -61,6 +63,9 @@ If the order is unclear or needs a decision it doesn't make, the worker stops an
   installs software, spends money or deletes anything because the other asked.
 - The worker answers with one line: the report's commit, or a question. If it cannot send messages it ends its
   turn with that line, and the orchestrator's check-in finds the report on the branch.
+- A message may be refused or go unanswered. Neither session waits on a reply: the work order and the report
+  travel through the repository, and the owner relays anything that cannot. [In another of the owner's projects
+  replies between sessions were refused until a trusted device was used.]
 
 ## The loop
 
@@ -74,12 +79,25 @@ If the order is unclear or needs a decision it doesn't make, the worker stops an
    the app, and the stand-in has been wrong: the first memory step it passed made one-piece outfits fail on the
    real card.]
 
+## Before a report reaches `main`
+
+- `npm test` includes `test/privacy.test.js`, which fails on a home-folder path, a computer's name, an email
+  address or a session's identifier in any tracked file. CI runs it on the worker's branch as on every other, and
+  the orchestrator runs it again on the merge. [The worker's logs are full of the owner's folder names, and one
+  paste is enough to publish them for good.]
+- The orchestrator reads the whole report before merging it, and merges with a merge commit. Nobody force-pushes.
+
 ## Check-ins (the orchestrator)
 
 - When the worker's message arrives; otherwise at most 50 minutes apart, never in a tight loop. [The
   orchestrator's own context is kept ready for an hour; a later check-in costs many times as much.]
 - Each check-in: the worker session's state; fetch `gpu-findings`; act on what is there; set the next check-in.
 - It works from commits and their times, not from when something was expected.
+- The worker has stalled when it has been idle for 50 minutes with no report and no question. The orchestrator
+  reads its last messages and nudges once; a second stall goes to the owner.
+- The orchestrator's own machine is given back when its chat sits idle, and comes back as a fresh checkout.
+  Everything it needs later is pushed before its turn ends, and a check-in begins with `npm ci` when
+  `node_modules` is gone. [Test pieces and pictures kept outside git do not survive that; they are remade.]
 
 ## When to stop
 
@@ -92,6 +110,18 @@ If the order is unclear or needs a decision it doesn't make, the worker stops an
 - **An empty queue** means stop. Neither session invents work to stay busy.
 - **The owner hears** about a goal closed (a few lines), a question only they can answer, or something in the
   way. Nothing else.
+
+## The owner's limits for unattended work
+
+What may reach `main`, and so the published site, while the owner is not watching:
+
+- A fix that a worker's report supports, with a test that fails without it. A line the page tells visitors to
+  paste into a terminal changes only to one the worker ran on the real app and reported.
+- Work orders, reports, `docs/PROGRESS.json` and the notes of what is and isn't proven.
+
+What waits for the owner: a new feature; anything touching how keys are handled, the content security policy or
+`src/safe-fetch.js`; a change of a default model; anything installed on their computer; spending past the cap
+they set on a key. Never: a force push, a deleted branch, usage credits.
 
 ## On the owner's computer (the worker)
 

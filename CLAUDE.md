@@ -26,7 +26,7 @@ Where the installed Chromium is not the one Playwright pins, set `CHROMIUM_EXECU
 
 Most rules give their reason in brackets, so a rule can be dropped once its reason no longer holds.
 
-- Never commit names, emails, usernames, chat screenshots, real photos of people, API keys or `.env` files. Test fixtures are synthetic. [The repository is public and its history keeps everything.]
+- Never commit names, emails, usernames, chat screenshots, real photos of people, API keys or `.env` files. Test fixtures are synthetic. `test/privacy.test.js` catches the part of this a pattern can see (home-folder paths, computer names, email addresses, session identifiers); the rest is on whoever commits. [The repository is public and its history keeps everything.]
 - No names or identifiers of the AI assistant models that build this project in code, docs or commit messages, apart from the attribution trailer the session's instructions require on each commit. The models the page itself calls (the image models, the check) are named wherever needed.
 - Everything under `public/` runs in a browser from a subfolder: relative URLs only, no Node APIs, no build step, no front-end framework. [GitHub Pages serves the folder as it is, under `/<repository>/`.]
 - API keys live only in the user's browser storage and go only to their own provider. No analytics, third-party scripts or CDN imports, and `connect-src` in `public/index.html` lists only the providers the page calls, plus the visitor's own computer (`localhost` and `127.0.0.1`) for a local model. [A visitor's key is their money; the content security policy is what keeps a mistake from sending it elsewhere.]
@@ -61,7 +61,7 @@ The split is by the kind of work, as in the owner's other projects. The model is
 - **The middle model where a test can say whether the work is right:** a change whose checks are written down before it starts.
 - **The strongest model where judgment is the only check:** what to build, anything touching `src/safe-fetch.js`, the content security policy or how keys are handled, and the last read of a diff before it reaches `main`.
 - The main session does the work itself unless it is one of the above and can run alongside. fitbash is small: don't add builder, reviewer and skeptic roles until a change needs several work orders at once.
-- **The graphics card is the one thing the main session cannot reach,** so one worker exists for it: a session on the owner's computer that measures against the real local app and reports. `docs/PIPELINE.md` is how the two work together, `docs/QUEUE.md` is where things stand, and a session that finds itself on the owner's computer reads both before anything else. The worker measures; the main session decides and changes the code.
+- **The graphics card is the one thing the main session cannot reach,** so one worker exists for it: a session on the owner's computer that measures against the real local app and reports. `docs/PIPELINE.md` is how the two work together, `docs/PROGRESS.json` is where things stand, and a session that finds itself on the owner's computer reads both before anything else. The worker measures; the main session decides and changes the code.
 - **The check inside the page is a judgment role too:** nothing checks its verdict, and a missed print defect is the failure it exists to catch. Cut its cost with smaller inputs first (it already gets 1024-pixel references). Change its default model or effort only after comparing the candidates on real outfit pictures with known defects.
 
 ## Usage
