@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildPrompt, STYLES, CHOICES, choiceApplies } from "../public/lib/prompt.js";
+import { buildPrompt, namedBasics, STYLES, CHOICES, choiceApplies } from "../public/lib/prompt.js";
 
 const items = [{ label: "frog tee" }, { label: "  " }, {}];
 
@@ -110,4 +110,48 @@ test("every choice starts with saying nothing, and is offered only where it has 
   // The scenes proven on the real service are unchanged by being put together from parts.
   assert.equal(STYLES.model.scene, "Show the pieces worn together by a fashion model in a full-length, head-to-toe studio photo, standing front on against a plain light background.");
   assert.equal(STYLES.mannequin.scene, "Dress a plain, faceless shop mannequin in the pieces and show it full length, head to toe, front on, against a plain light studio background.");
+});
+
+test("basics are offered only for what the named pieces leave open", () => {
+  const ask = (labels, style = "flatlay", fillGaps = true) => buildPrompt({ items: labels.map((label) => ({ label })), style, fillGaps });
+  const whole = /cannot be complete without a piece that is missing \(bottoms or shoes\), add it: plain full-length trousers, or a plain pair of ordinary shoes/;
+
+  // Nothing says what the pieces are: the instruction is as it was.
+  assert.match(ask(["grey shirt"]), whole);
+  assert.match(ask(["", ""]), whole);
+
+  // Bottoms and shoes both named: there is nothing to add, so the model is told exactly what it is told
+  // with the box unticked. Measured on the local models: with the sentence 5 flat lays of 6 gained
+  // trousers or shoes nobody supplied, without it 0 of 10.
+  for (const style of ["flatlay", "mannequin", "model"]) {
+    const named = ["grey shirt", "tie dye jeans", "oversized clown shoes"];
+    assert.equal(ask(named, style), ask(named, style, false), style);
+    assert.doesNotMatch(ask(named, style), /add it|add them/, style);
+  }
+
+  // Only shoes can be missing: trousers are not offered, and are ruled out.
+  const noShoes = ask(["grey shirt", "tie dye jeans"]);
+  assert.match(noShoes, /If the outfit has no shoes, add them: a plain pair of ordinary shoes, in a neutral color/);
+  assert.match(noShoes, /Add nothing beyond that: no other bottoms, hats, bags/);
+  assert.doesNotMatch(noShoes, /full-length trousers/);
+
+  // Only bottoms can be missing.
+  const noBottoms = ask(["grey shirt", "clown shoes"]);
+  assert.match(noBottoms, /If the outfit has no bottoms, add them: plain full-length trousers, in a neutral color/);
+  assert.match(noBottoms, /Add nothing beyond that: no other shoes, hats, bags/);
+  assert.doesNotMatch(noBottoms, /pair of ordinary shoes/);
+});
+
+test("a piece's name says whether it is bottoms or shoes, without being fooled by look-alike words", () => {
+  const is = (label) => namedBasics([label]);
+  for (const label of ["blue jeans", "Bootcut Jeans", "boot cut jeans", "sweatpants", "dress pants", "midi skirt", "sundress", "linen shorts", "denim overalls"]) {
+    assert.deepEqual(is(label), { bottoms: true, shoes: false }, label);
+  }
+  for (const label of ["red and white sneakers", "dress shoes", "Chelsea Boots", "ankle boots", "oversized clown shoes", "leather loafers", "flip-flops"]) {
+    assert.deepEqual(is(label), { bottoms: false, shoes: true }, label);
+  }
+  for (const label of ["dress shirt", "short sleeve shirt", "flat cap", "shoelaces", "frog tee", "blue fedora hat", "", undefined]) {
+    assert.deepEqual(is(label), { bottoms: false, shoes: false }, String(label));
+  }
+  assert.deepEqual(namedBasics(["frog tee", "blue jeans", "sneakers"]), { bottoms: true, shoes: true });
 });

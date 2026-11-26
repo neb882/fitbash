@@ -100,19 +100,20 @@
       "decides": "Whether a local model can give a clean flat lay: with the sentence about adding missing basics left out, with a note about gaps, or not at all",
       "orders": [
         "WO-05",
-        "WO-06"
+        "WO-06",
+        "WO-07"
       ],
-      "rounds": 1,
+      "rounds": 2,
       "status": "open",
-      "so_far": "WO-05: 0 clean flat lays in 6 across both local models, with the sentence rewritten for Google's model in place. Something nobody supplied in 6 of 6 (extra shoes in five, plain grey trousers in two), one piece lying on another in 5 of 6, a supplied piece lost in 2; front side up, unfolded and a plain background held in 6 of 6. The same pieces 'on a model' were kept in 13 of 13. The page now shows a tip with a flat lay on a local model: 'On a model' keeps the pieces best. WO-06 tries the flat lay without the basics sentence (the worker's guess at what draws the extras), then with a note about gaps, and checks the basics sentence still works when a piece really is missing."
+      "so_far": "WO-05: 0 clean flat lays in 6 on the local models; something nobody supplied in 6 of 6, a piece lying on another in 5 of 6. WO-06 (14 pictures): without the sentence about adding missing basics, no trousers and no shoes of another kind in 10 of 10 (the standard model still drew a third clown shoe in 3 of 4); the overlap stayed at 5 of 6 and a note about gaps left it at 4 of 4; where the sentence applied it added the missing pieces in 4 of 4 but two pairs of shoes in 2 of 4 and trousers under supplied jeans in 1 of 2. Decided: the page now reads the pieces' names and offers basics only for what they leave open (nothing when bottoms and shoes are both named, shoes only when bottoms are named, bottoms only when shoes are); checked on Google's model with 3 pictures, nothing added where nothing was missing and plain shoes only where shoes were. The overlap is taken as the models' limit: the tip with a flat lay on a local model stays, and no other wording will be tried. WO-07 checks the one new sentence (only shoes missing) on the card; G9 closes on its report either way."
     }
   ],
   "in_flight": [
     {
-      "order": "WO-06",
+      "order": "WO-07",
       "with": "the worker on the owner's computer",
       "sent": "2026-11-26",
-      "report": "docs/reports/WO-06.md on the branch gpu-findings"
+      "report": "docs/reports/WO-07.md on the branch gpu-findings"
     }
   ],
   "next": [
@@ -120,7 +121,8 @@
     "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
     "--max-vram for cards that were not measured: an 11 GB card is likely the most fragile of all, and nothing is known for 8, 16 or 24 GB. Needs other hardware, which the worker does not have.",
     "The Claude check has never run with a real key. The secure form cannot hold an Anthropic key, so it needs the owner to add one as an environment variable (FITBASH_TEST_CLAUDE_KEY) in the fitbash environment's settings; a new session then sees it. The owner has said a new session is fine. The plan is to run the check against real pictures with known faults (shoes shrunk, pieces folded, a cropped head) and against good ones.",
-    "The standard local model added a wristwatch in 2 of its 4 'on a model' pictures in WO-05, against the instruction's 'no hats, bags, watches, jewellery'. Small beside a lost piece; look at it if a later order makes pictures on a model anyway."
+    "The standard local model added a wristwatch in 2 of its 4 'on a model' pictures in WO-05, against the instruction's 'no hats, bags, watches, jewellery'. Small beside a lost piece; look at it if a later order makes pictures on a model anyway.",
+    "The standard local model drew the supplied shoes as three shoes in 3 flat lays of 4 (WO-06), past 'Show every supplied item exactly once'. Flat lays there are already advised against; not worth an order on its own."
   ],
   "dead_ends": [
     "--offload-to-cpu on its own as the memory step: on a 12 GB card it failed every outfit of two to four pieces, exactly as no options did (WO-01).",

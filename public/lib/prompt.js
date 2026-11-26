@@ -72,6 +72,37 @@ export const CHOICES = [
 /** Whether a choice has anything to offer for a look. */
 export const choiceApplies = (choice, look) => Object.values(choice.options).some((option) => look in option);
 
+// Words in a piece's name that say the outfit already has bottoms, or shoes. English only: a piece with no
+// name, or a name these don't know, simply leaves the instruction as it was.
+const BOTTOMS =
+  /\b(jeans|trousers|slacks|chinos|joggers|leggings|shorts|skirts?|skorts?|kilts?|culottes|jorts|overalls|dungarees|jumpsuits?|rompers?|playsuits?)\b|pants\b|dress(es)?\b(?! (shirts?|shoes?|pants|trousers|socks))/i;
+const SHOES =
+  /\b(shoes?|sneakers?|trainers|boots?(?![- ]?cut)|sandals?|heels|loafers?|slippers?|clogs?|pumps|oxfords?|brogues?|mules?|espadrilles?|flip[- ]?flops?|slides|flats|moccasins?|wellies)\b/i;
+
+/** Which of the two basics the page may add are already among the named pieces. */
+export function namedBasics(labels) {
+  return { bottoms: labels.some((label) => BOTTOMS.test(label ?? "")), shoes: labels.some((label) => SHOES.test(label ?? "")) };
+}
+
+/**
+ * The sentence that lets the model add a missing basic, naming only what can be missing, or "" when the
+ * named pieces already include both bottoms and shoes.
+ *
+ * Measured on the local models (docs/reports/WO-05.md, WO-06.md): told it may add "bottoms or shoes" to a
+ * flat lay that had both, the model drew plain trousers or a second kind of shoes in 5 pictures of 6, and
+ * with only shoes missing it drew trousers under the supplied jeans in 1 of 2. Without the sentence: 0 of 10.
+ */
+function basicsSentence(have) {
+  if (have.bottoms && have.shoes) return "";
+  const rest = "in a neutral color that suits the rest and understated so the supplied items stay the focus.";
+  const nothingElse = (kept) => `Add nothing beyond that: no ${kept}hats, bags, watches, jewellery, belts or other accessories that weren't supplied.`;
+  if (have.bottoms) return `If the outfit has no shoes, add them: a plain pair of ordinary shoes, ${rest} ${nothingElse("other bottoms, ")}`;
+  if (have.shoes) return `If the outfit has no bottoms, add them: plain full-length trousers, ${rest} ${nothingElse("other shoes, ")}`;
+  // The added piece is named outright. Seen with a local model: left to choose "a plain one", it gave
+  // a lone shirt shorts with separate lower legs in 4 pictures out of 11.
+  return `If the outfit cannot be complete without a piece that is missing (bottoms or shoes), add it: plain full-length trousers, or a plain pair of ordinary shoes, ${rest} ${nothingElse("")}`;
+}
+
 /**
  * @param {object} request
  * @param {{label?: string}[]} request.items  one entry per reference picture, in order
@@ -94,13 +125,13 @@ export function buildPrompt({ items, style, fillGaps, notes, feedback, ...chosen
     .map((item, i) => `${i + 1}. ${item.label?.trim() || "clothing item"}`)
     .join("\n");
 
-  const extras = fillGaps
-    ? // The added piece is named outright. Seen with a local model: left to choose "a plain one", it gave
-      // a lone shirt shorts with separate lower legs in 4 pictures out of 11.
-      "If the outfit cannot be complete without a piece that is missing (bottoms or shoes), add it: plain full-length trousers, or a plain pair of ordinary shoes, in a neutral color that suits the rest and understated so the supplied items stay the focus. Add nothing beyond that: no hats, bags, watches, jewellery, belts or other accessories that weren't supplied."
-    : worn
+  // Adding basics is offered only for what the named pieces leave open. With bottoms and shoes both
+  // named there is nothing to add, and the model is told what it is told when the box is unticked.
+  const extras =
+    (fillGaps && basicsSentence(namedBasics(items.map((item) => item.label)))) ||
+    (worn
       ? "Don't add statement pieces or accessories that aren't in the reference pictures. Where no item was supplied, cover the body with the plainest neutral basics so the figure is fully dressed."
-      : "Show only the supplied items. Don't add clothing or accessories that aren't in the reference pictures.";
+      : "Show only the supplied items. Don't add clothing or accessories that aren't in the reference pictures.");
 
   const parts = [
     "Create one photorealistic picture of a complete outfit put together from the clothing items in the reference pictures.",
