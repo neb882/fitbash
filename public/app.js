@@ -13,6 +13,7 @@ import {
   LOCAL_TIERS,
   findLocalModels,
   localMaxPieces,
+  localMemoryCommand,
   readLocalDownloads,
   pickLocalModel,
   startLocalDownload,
@@ -77,6 +78,10 @@ const ui = {
   localAllow: $("local-allow"),
   localAllowCommand: $("local-allow-command"),
   localAllowCopy: $("local-allow-copy"),
+  localMemory: $("local-memory"),
+  localMemoryWhy: $("local-memory-why"),
+  localMemoryCommand: $("local-memory-command"),
+  localMemoryCopy: $("local-memory-copy"),
   localModels: $("local-models"),
   localModel: $("local-model"),
   localDownload: $("local-download"),
@@ -280,6 +285,13 @@ function renderLocal() {
     ui.localModel.disabled = Boolean(local.downloading);
   }
 
+  const memory = localMemoryStep();
+  ui.localMemory.hidden = !memory;
+  if (memory) {
+    ui.localMemoryWhy.textContent = memory.why;
+    ui.localMemoryCommand.textContent = memory.command;
+  }
+
   // How far, how fast, how long to go. Not in the status line: that one is read out to
   // people using a screen reader each time it changes, and this changes every two seconds.
   const progress = local.downloading ? local.progress : null;
@@ -289,6 +301,30 @@ function renderLocal() {
     else ui.localProgressBar.value = progress.percent;
     ui.localProgressText.textContent = progress.text;
   }
+}
+
+/**
+ * The extra step for a model larger than the graphics card's memory: { command, why },
+ * or null when the model in use doesn't need it or already has it.
+ */
+function localMemoryStep() {
+  const { local, settings } = state;
+  if (local.status !== "connected") return null;
+  const command = localMemoryCommand(local.models.find((model) => model.id === settings.localModel));
+  if (!command) return null;
+  if (local.pictureFailed) {
+    return {
+      command,
+      why: "If pictures keep failing, the model is probably larger than your graphics card's memory. This step, done once, usually fixes it:",
+    };
+  }
+  if (LOCAL_TIERS[localTier()]?.tight) {
+    return {
+      command,
+      why: "One more step for this graphics card, done once. The model is larger than the card's memory, and without this step making a picture can fail:",
+    };
+  }
+  return null;
 }
 
 /** Use the model picked in the list if it is on this computer; otherwise leave Setup unfinished. */
@@ -451,15 +487,20 @@ function wireLocal() {
     renderSettings();
   });
   ui.localDownload.addEventListener("click", downloadLocalModel);
-  ui.localAllowCopy.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(ui.localAllowCommand.textContent);
-      ui.localAllowCopy.textContent = "Copied";
-    } catch {
-      // No clipboard access: select the line so it can be copied by hand.
-      getSelection().selectAllChildren(ui.localAllowCommand);
-    }
-  });
+  for (const [button, line] of [
+    [ui.localAllowCopy, ui.localAllowCommand],
+    [ui.localMemoryCopy, ui.localMemoryCommand],
+  ]) {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(line.textContent);
+        button.textContent = "Copied";
+      } catch {
+        // No clipboard access: select the line so it can be copied by hand.
+        getSelection().selectAllChildren(line);
+      }
+    });
+  }
   ui.localUrl.addEventListener("input", () => {
     state.settings.localUrl = ui.localUrl.value.trim();
     // A different address is a different app: what the old one said no longer holds.
@@ -950,11 +991,17 @@ async function generate() {
     if (run.real && made.has(best)) await keepOutfit(made.get(best), request);
   } catch (error) {
     if (!(error instanceof ProviderError)) console.error(error);
-    setProgress(
-      error instanceof ProviderError ? error.message : "Something went wrong while making the picture. Try again in a minute.",
-      true,
-    );
-    if (error instanceof ProviderError && /in Setup/.test(error.message)) openSetup();
+    let message =
+      error instanceof ProviderError ? error.message : "Something went wrong while making the picture. Try again in a minute.";
+    // The app on this computer failed at the picture itself: Setup may have a step for that.
+    if (settings.provider === "local" && error instanceof ProviderError && error.status >= 500) {
+      state.local.pictureFailed = true;
+      if (state.local.status !== "connected") await connectLocal();
+      renderSettings();
+      if (localMemoryStep()) message += " One more step in Setup usually fixes this; it is shown there now.";
+    }
+    setProgress(message, true);
+    if (error instanceof ProviderError && /in Setup/.test(message)) openSetup();
   } finally {
     state.busy = false;
     updateGenerate();

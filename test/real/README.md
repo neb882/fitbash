@@ -12,9 +12,9 @@ Written 2026-11-25; change this list as runs are made.
 - Proven with a real Google key that had no billing (2026-11-25): the key check passes, the picture request reaches the service in a form it accepts, and its refusal ("limit: 0 ... on Free Tier", HTTP 429) is shown as the page's billing advice. No picture was made and nothing was spent.
 - Proven with the same key once billing was on (2026-11-25): ten real pictures from `gemini-nano-banana-2.1`, six of them outfits made through the page by the runner. Google's answer is read correctly (a `thought` step, then a `model_output` step holding the picture as JPEG). Prints, lettering, colours and details were kept in every outfit. Two faults in the instruction were found and fixed (accessories nobody supplied; jeans shortened in a square flat lay), and both cases were run again and came out right. The main README, "Which models, and why", has the account.
 - Proven with the owner's own run on shop photos and ten more pictures (2026-11-25): Google's model turned an unusually shaped piece into the ordinary version of it. Oversized clown shoes came out as ordinary-sized sneakers, and enormous wide-leg jeans as merely baggy ones; naming the piece helped only partly. A sentence in the instruction asking for each piece's own shape and proportions fixed all three cases, held on a second try, and left an ordinary outfit unchanged.
-- Partly proven with the real Lemonade app on the owner's computer (2026-11-25, Windows, a 12 GB NVIDIA card, `Flux-2-Klein-4B`): the page recognised the card, connected from the website, listed the model and reported Setup as ready. A picture from three pieces failed with HTTP 500 and only "sd-server request failed" as its message. Lemonade's source shows the picture engine's own reason travelling in `error.details.response`; the page now reads it, and a second real try (five pieces) showed it on the page: "generate_image returned no results", which is what the engine says when it fails without a reason of its own. That answer is pinned in `test/local.test.js`. The cause is not confirmed; the engine's own output reaches Lemonade's log only when the log level was Debug at the moment the engine started.
+- Partly proven with the real Lemonade app on the owner's computer (2026-11-25, Windows, a 12 GB NVIDIA card, `Flux-2-Klein-4B`): the page recognised the card, connected from the website, listed the model and reported Setup as ready. A picture from three pieces failed with HTTP 500 and only "sd-server request failed" as its message. Lemonade's source shows the picture engine's own reason travelling in `error.details.response`; the page now reads it, and a second real try (five pieces) showed it on the page: "generate_image returned no results", which is what the engine says when it fails without a reason of its own. That answer is pinned in `test/local.test.js`. The engine's own output reaches Lemonade's log only when the log level was Debug at the moment the engine started. The cause was memory: the model's files total about 16 GB against the card's 12, and the failures stopped once the owner ran `lemonade load Flux-2-Klein-4B --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options`. Setup now shows that line for cards of up to 16 GB and after any failed local picture.
 - Proven with the real Lemonade app, later the same day: a first picture from a model on the owner's computer, made through the published site from five shop photos. The shirt and the tie-dye jeans were kept well; the hat and the pendant were left out; the shoes became sandals. FLUX.2 klein takes up to four reference pictures by its maker's documentation, so the page now refuses a fifth piece for it instead of letting pieces vanish.
-- Not yet proven: a picture from OpenAI or OpenRouter; the OpenRouter sign-in round trip; the Claude check; what made the first local pictures fail and then stop failing; a local picture from four pieces or fewer, read piece by piece; the download readout against the real app (`/v1/pull` as a job, `/v1/downloads`); photos of the owner's own clothes (a hanger, a person, a cluttered background).
+- Not yet proven: a picture from OpenAI or OpenRouter; the OpenRouter sign-in round trip; the Claude check; whether the app lists the saved options (`recipe_options.sdcpp_args` in `/v1/models`), which is how Setup knows the memory step is done; a local picture from four pieces or fewer, read piece by piece; the download readout against the real app (`/v1/pull` as a job, `/v1/downloads`); photos of the owner's own clothes (a hanger, a person, a cluttered background).
 
 ## Before a run
 
@@ -48,6 +48,24 @@ node test/real/run.mjs --pieces test/real/pieces --site https://<owner>.github.i
 It opens the page, connects the key in Setup, and for each outfit adds the pictures, names them, picks the look and presses **Make the outfit**. Into `test/real/out/` go every picture made, a `report.md`, and for each run an `…-answers.json` holding what the services answered, with pictures and other long text cut short.
 
 To have the Claude check take part, give its key the same way (`--check-key-env`). From this kind of workspace the browser may not reach Anthropic's address at all (a certificate error, seen 2026-11-25); that is the workspace's network, not the site.
+
+## A model on the owner's own computer
+
+This needs a session that runs on that computer (the graphics card is there), with Lemonade open and the model downloaded. A cloud session cannot reach it.
+
+```sh
+npm ci
+npx playwright install chromium
+node test/real/run.mjs --service local --pieces test/real/pieces --looks model --wait-minutes 15
+```
+
+The runner serves this checkout on the computer itself, which Lemonade accepts without being told to. It costs nothing but time. What is worth finding out, one change at a time, with the seconds each picture took:
+
+- One, two, three and four pieces: which pieces are kept, and where it starts to lose them.
+- With and without the memory step above, and with `--diffusion-fa` alone or `--offload-to-cpu` alone: which of the two a card smaller than the model really needs, and what each costs in time.
+- Whether `/v1/models?show_all=true` shows the saved options under `recipe_options` once the step is done.
+- The larger model (`--model Flux-2-Klein-9B-GGUF`), if there is room to download it: whether it keeps prints and odd shapes better.
+- A download started from Setup: whether the readout's size, speed and time left match what Lemonade's own window shows.
 
 ## Reading the results
 

@@ -126,6 +126,24 @@
                 <button id="local-download" type="button" class="quiet strong" hidden>Download it</button>
               </div>
 
+              <div id="local-memory" class="callout" hidden>
+                <p id="local-memory-why"></p>
+                <ol>
+                  <li>
+                    Open a terminal. On Windows, press Start, type <kbd>cmd</kbd> and press Enter. On a Mac, open
+                    Terminal from Applications, Utilities.
+                  </li>
+                  <li>
+                    Paste this line there and press Enter:
+                    <span class="command">
+                      <code id="local-memory-command"></code>
+                      <button id="local-memory-copy" type="button" class="quiet">Copy</button>
+                    </span>
+                  </li>
+                  <li>When it has finished, press Connect again and make your outfit.</li>
+                </ol>
+              </div>
+
               <div id="local-progress" class="download-progress" hidden>
                 <progress id="local-progress-bar" max="100" aria-label="Download progress"></progress>
                 <p id="local-progress-text" class="muted"></p>

@@ -328,8 +328,8 @@ const FAIL = {
 // What the local app lists, in the shape its documentation gives.
 const localCatalog = () => [
   { id: "SD-Turbo", size: 5.21, downloaded: true, labels: ["image"] },
-  { id: "Flux-2-Klein-9B-GGUF", size: 19, downloaded: false, labels: ["image", "edit"] },
-  { id: "Flux-2-Klein-4B", size: 16.1, downloaded: false, labels: ["image", "edit"] },
+  { id: "Flux-2-Klein-9B-GGUF", size: 19, downloaded: false, labels: ["image", "edit"], recipe: "sd-cpp", recipe_options: { steps: 4 } },
+  { id: "Flux-2-Klein-4B", size: 16.1, downloaded: false, labels: ["image", "edit"], recipe: "sd-cpp", recipe_options: { steps: 4 } },
 ];
 
 const text = (page, selector) => page.textContent(selector);
@@ -1031,6 +1031,86 @@ test("a download in the app is picked up again after the page was closed, and a 
   assert.deepEqual(seen.errors, []);
 });
 
+test("a graphics card smaller than the model gets one extra step, which goes away once it is done", options, async (t) => {
+  const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
+  const { page } = await open(t, { context: devices["Pixel 7"], services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "medium");
+  assert.match(await text(page, "#local-advice"), /one extra step that Setup shows after you connect/);
+  assert.equal(await page.isHidden("#local-memory"), true);
+
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  await page.waitForSelector("#local-memory:not([hidden])");
+  assert.match(await text(page, "#local-memory-why"), /^One more step for this graphics card, done once\./);
+  // The line that made pictures work on a real 12 GB card.
+  assert.equal(
+    await text(page, "#local-memory-command"),
+    'lemonade load Flux-2-Klein-4B --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options',
+  );
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    0,
+    "the long line fits a phone",
+  );
+
+  // Copy puts the line on the clipboard; where the browser won't allow that, it selects the line to copy by hand.
+  await page.click("#local-memory-copy");
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#local-memory-copy").textContent === "Copied" ||
+      getSelection().toString() === document.querySelector("#local-memory-command").textContent,
+  );
+
+  // A card with room for the model isn't given the step.
+  await page.selectOption("#local-tier", "large");
+  assert.equal(await page.isHidden("#local-memory"), true);
+  await page.selectOption("#local-tier", "small");
+  assert.equal(await page.isVisible("#local-memory"), true);
+
+  // The step is done in a terminal; the app then lists the model with the options saved.
+  services.local.catalog = services.local.catalog.map((model) =>
+    model.id === "Flux-2-Klein-4B" ? { ...model, recipe_options: { steps: 4, sdcpp_args: "--diffusion-fa --offload-to-cpu" } } : model,
+  );
+  await page.click("#local-connect");
+  await page.waitForSelector("#local-memory", { state: "hidden" });
+  assert.equal(await text(page, "#local-status"), "Connected and ready.");
+});
+
+test("a local picture that fails points to the extra step, whatever the card was said to be", options, async (t) => {
+  const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })), engineError: "generate_image returned no results" } };
+  const { page } = await open(t, { services });
+  await page.click('#providers input[value="local"]', { force: true });
+  await page.selectOption("#local-tier", "large");
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  await page.selectOption("#local-model", "Flux-2-Klein-4B");
+  await untilText(page, "#settings-summary", "This computer connected");
+  assert.equal(await page.isHidden("#local-memory"), true);
+
+  // Setup is closed and the page reopened, as on a later visit: nothing has been asked of the app yet.
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  assert.equal(await page.evaluate(() => document.querySelector("#settings").open), false);
+  await addFiles(page, [TEE, JEANS]);
+  await page.click("#generate");
+  await untilText(page, "#progress", "One more step in Setup usually fixes this");
+  assert.match(await text(page, "#progress"), /^The app on your computer couldn't make that picture\..*\(It said: generate_image returned no results\) One more step in Setup/);
+  assert.equal(await page.evaluate(() => document.querySelector("#settings").open), true);
+  assert.equal(await page.isVisible("#local-memory"), true);
+  assert.match(await text(page, "#local-memory-why"), /^If pictures keep failing/);
+  assert.match(await text(page, "#local-memory-command"), /^lemonade load Flux-2-Klein-4B /);
+
+  // An app that isn't Lemonade's picture engine is given no line to paste, and no promise of one.
+  services.local.catalog = [{ id: "sd-cpp-local" }];
+  await page.click("#local-connect");
+  await untilText(page, "#local-status", "Connected and ready.");
+  await page.click("#generate");
+  await untilText(page, "#progress", "(It said: generate_image returned no results)");
+  await page.waitForFunction(() => !document.querySelector("#progress").textContent.includes("One more step"));
+  assert.equal(await page.isHidden("#local-memory"), true);
+});
+
 test("a local model that combines four pieces says so, and is not sent a fifth", options, async (t) => {
   const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
   const { page, seen } = await open(t, { services });
@@ -1062,7 +1142,8 @@ test("when the local app can't make the picture, the page gives its reason and s
   await addFiles(page, [TEE, JEANS]);
   await page.click("#generate");
   await untilText(page, "#progress", "ran out of memory");
-  assert.match(await text(page, "#progress"), /try again with fewer pieces.*\(It said: failed to allocate buffer of 9216 MiB\)$/);
+  // The model is one the app's picture engine runs, so the page also points to the step that gives it room.
+  assert.match(await text(page, "#progress"), /try again with fewer pieces.*\(It said: failed to allocate buffer of 9216 MiB\) One more step in Setup usually fixes this/);
   assert.equal(await page.locator("#progress.error").count(), 1);
 
   services.local.engineError = "unsupported sampler";

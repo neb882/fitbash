@@ -6,6 +6,7 @@ import {
   LOCAL_TIERS,
   createLocalProvider,
   findLocalModels,
+  localMemoryCommand,
   pickLocalModel,
   readLocalDownloads,
   startLocalDownload,
@@ -36,8 +37,16 @@ const CATALOG = {
     { id: "Gemma-4-E2B-it-GGUF", size: 3.1, downloaded: true, labels: ["reasoning"] },
     { id: "SD-Turbo", size: 5.21, downloaded: true, labels: ["image"] },
     { id: "RealESRGAN-x4plus", size: 0.1, downloaded: true, labels: ["image", "edit", "upscaling"] },
-    { id: "Flux-2-Klein-9B-GGUF", size: 19.0, downloaded: false, labels: ["image", "edit"] },
-    { id: "Flux-2-Klein-4B", size: 16.1, downloaded: false, labels: ["image", "edit"] },
+    { id: "Flux-2-Klein-9B-GGUF", size: 19.0, downloaded: false, labels: ["image", "edit"], recipe: "sd-cpp", recipe_options: { steps: 4 } },
+    // What the app lists once the memory-saving options were saved for a model.
+    {
+      id: "Flux-2-Klein-4B",
+      size: 16.1,
+      downloaded: false,
+      labels: ["image", "edit"],
+      recipe: "sd-cpp",
+      recipe_options: { steps: 4, sdcpp_args: "--diffusion-fa --offload-to-cpu" },
+    },
   ],
 };
 
@@ -68,6 +77,28 @@ test("the default address is used when none is set, and a JPEG answer is recogni
   assert.equal(calls[0].url, `${LOCAL_DEFAULT_URL}/images/edits`);
   assert.equal(calls[0].init.body.get("size"), "1024x1024");
   assert.equal(out.mimeType, "image/jpeg");
+});
+
+test("a model larger than the graphics card gets one line to paste, unless the app already has it", () => {
+  const model = { id: "Flux-2-Klein-4B", recipe: "sd-cpp", memorySaving: false };
+  // The line that made pictures work on a real 12 GB card (2026-11-25).
+  assert.equal(
+    localMemoryCommand(model),
+    'lemonade load Flux-2-Klein-4B --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options',
+  );
+  assert.equal(localMemoryCommand({ ...model, memorySaving: true }), null);
+  // Another engine, or an app that doesn't say, takes other options: no line is better than a wrong one.
+  assert.equal(localMemoryCommand({ ...model, recipe: "thenoise" }), null);
+  assert.equal(localMemoryCommand({ ...model, recipe: null }), null);
+  assert.equal(localMemoryCommand(undefined), null);
+  // A name that would do something else in a terminal is never put in the line.
+  for (const id of ["x & calc", "x; rm -rf ~", "$(reboot)", "a b", "-m", 'x"y', ""]) {
+    assert.equal(localMemoryCommand({ ...model, id }), null, id);
+  }
+  assert.match(localMemoryCommand({ ...model, id: "user.My-Model_2" }), /^lemonade load user\.My-Model_2 /);
+
+  // Cards with less memory than the standard model's files are the ones that need it.
+  assert.deepEqual(Object.keys(LOCAL_TIERS).filter((tier) => LOCAL_TIERS[tier].tight), ["small", "medium"]);
 });
 
 test("a model that combines only four pieces is not sent a fifth", async () => {
@@ -134,8 +165,8 @@ test("models that can combine pictures are listed, with size and whether they ar
   assert.deepEqual(found, {
     status: "connected",
     models: [
-      { id: "Flux-2-Klein-9B-GGUF", sizeGb: 19.0, downloaded: false },
-      { id: "Flux-2-Klein-4B", sizeGb: 16.1, downloaded: false },
+      { id: "Flux-2-Klein-9B-GGUF", sizeGb: 19.0, downloaded: false, recipe: "sd-cpp", memorySaving: false },
+      { id: "Flux-2-Klein-4B", sizeGb: 16.1, downloaded: false, recipe: "sd-cpp", memorySaving: true },
     ],
   });
 });
@@ -143,7 +174,7 @@ test("models that can combine pictures are listed, with size and whether they ar
 test("an app that labels nothing is taken to serve the one model it has", async () => {
   const single = { data: [{ id: "sd-cpp-local", object: "model", owned_by: "local" }] };
   const found = await findLocalModels("http://127.0.0.1:1234/v1", recorder(() => json(200, single)));
-  assert.deepEqual(found, { status: "connected", models: [{ id: "sd-cpp-local", sizeGb: null, downloaded: true }] });
+  assert.deepEqual(found, { status: "connected", models: [{ id: "sd-cpp-local", sizeGb: null, downloaded: true, recipe: null, memorySaving: false }] });
 });
 
 test("an app that is running but refuses this website is told apart from one that isn't there", async () => {

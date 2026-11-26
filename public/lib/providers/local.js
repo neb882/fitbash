@@ -26,11 +26,18 @@ const GENERATE_TIMEOUT_MS = 20 * 60_000;
  * models and is licensed for non-commercial use. README.md, "Which models, and why".
  */
 export const LOCAL_TIERS = {
+  // `tight`: the card has less memory than the standard model's files take (about 16 GB),
+  // so the app needs the extra step from localMemoryCommand() before it can make a picture.
   small: {
     model: "Flux-2-Klein-4B",
-    advice: "The standard model may just fit. Expect it to be slow, and close other programs that use the graphics card.",
+    tight: true,
+    advice: "The standard model may just fit. Expect it to be slow, and close other programs that use the graphics card. Setup shows one extra step for it after you connect.",
   },
-  medium: { model: "Flux-2-Klein-4B", advice: "A good fit for the standard model." },
+  medium: {
+    model: "Flux-2-Klein-4B",
+    tight: true,
+    advice: "A good fit for the standard model, with one extra step that Setup shows after you connect.",
+  },
   large: { model: "Flux-2-Klein-9B-GGUF", advice: "Enough for the larger model, which keeps details better." },
   apple: {
     model: "Flux-2-Klein-4B",
@@ -41,6 +48,24 @@ export const LOCAL_TIERS = {
     advice: "It can run without a graphics card, but one picture may take many minutes. A paid service is the practical choice on this computer.",
   },
 };
+
+// The engine options that keep a model's weights in ordinary memory and move them to the
+// graphics card as they are needed. Lemonade ships the same pair for its larger picture models.
+const MEMORY_OPTIONS = "--diffusion-fa --offload-to-cpu";
+
+/**
+ * The line to paste into a terminal so the app can run a model that is larger than the
+ * graphics card's memory, or null when it doesn't apply to this model.
+ *
+ * Seen with the real app (2026-11-25, a 12 GB NVIDIA card, Flux-2-Klein-4B at about 16 GB):
+ * every picture failed with "generate_image returned no results" until this was run once.
+ */
+export function localMemoryCommand(model) {
+  if (model?.recipe !== "sd-cpp" || model.memorySaving) return null;
+  // The name comes from the app and ends up in a terminal: only plain names are passed on.
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(model.id)) return null;
+  return `lemonade load ${model.id} --sdcpp-args "${MEMORY_OPTIONS}" --save-options`;
+}
 
 /**
  * How many pieces a local model can combine, or null when that isn't known.
@@ -137,7 +162,9 @@ export function createLocalProvider({ baseUrl, model, fetchImpl = fetch }) {
  * Look for the local app and list the models it has that can combine several pictures.
  *
  * Resolves to one of:
- *   { status: "connected", models: [{ id, sizeGb, downloaded }] }
+ *   { status: "connected", models: [{ id, sizeGb, downloaded, recipe, memorySaving }] }
+ *     recipe        which engine inside the app runs the model ("sd-cpp"), or null when it doesn't say
+ *     memorySaving  the app already starts this model with the options of localMemoryCommand()
  *   { status: "refused" }      the app is running but doesn't accept requests from this website
  *   { status: "unreachable" }  nothing answered: not installed, not open, or the browser blocked it
  */
@@ -177,6 +204,8 @@ export async function findLocalModels(baseUrl, { fetchImpl = fetch } = {}) {
       id: String(entry.id),
       sizeGb: typeof entry.size === "number" ? entry.size : null,
       downloaded: entry.downloaded !== false,
+      recipe: typeof entry.recipe === "string" ? entry.recipe : null,
+      memorySaving: /--offload-to-cpu\b/.test(String(entry.recipe_options?.sdcpp_args ?? "")),
     }));
   return { status: "connected", models };
 }
