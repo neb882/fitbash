@@ -3,7 +3,7 @@
 // helper server is present it adds product-link lookup.
 
 import { runOutfit } from "./lib/pipeline.js";
-import { STYLES, DEFAULT_STYLE } from "./lib/prompt.js";
+import { STYLES, DEFAULT_STYLE, WEARERS } from "./lib/prompt.js";
 import { createProvider, PROVIDERS, DEFAULT_PROVIDER, ProviderError } from "./lib/providers/index.js";
 import { createCritic, DEFAULT_CRITIC_MODEL } from "./lib/critic.js";
 import { checkKey } from "./lib/keycheck.js";
@@ -58,6 +58,8 @@ const ui = {
   pickerList: $("picker-list"),
   pickerCancel: $("picker-cancel"),
   styles: $("styles"),
+  wearerChoice: $("wearer-choice"),
+  wearers: $("wearers"),
   fill: $("fill"),
   notes: $("notes"),
   generate: $("generate"),
@@ -131,6 +133,7 @@ const state = {
     localUrl: "",
     localModel: "", // set once a downloaded model on this computer is chosen
     localTier: "",
+    wearer: "", // who wears the outfit in the mannequin and on-a-model looks; "" leaves it to the model
   },
   // What the app on this computer last told us; not saved.
   local: { status: "", models: [], downloading: "", progress: null },
@@ -969,7 +972,8 @@ async function generate() {
     const maxAttempts = critic ? MAX_ATTEMPTS : 1;
     const request = {
       items: state.items.map(({ mimeType, data, label, review }) => ({ mimeType, data, label, review })),
-      style: document.querySelector('input[name="style"]:checked')?.value ?? DEFAULT_STYLE,
+      style: chosenStyle(),
+      wearer: chosenWearer(),
       fillGaps: ui.fill.checked,
       notes: ui.notes.value,
     };
@@ -1013,13 +1017,26 @@ async function generate() {
 const EXTENSIONS = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 let pastUrls = []; // object URLs of the pictures on show, released when the grid is redrawn
 
+const chosenStyle = () => document.querySelector('input[name="style"]:checked')?.value ?? DEFAULT_STYLE;
+
+/** Who wears the outfit. The instruction uses it only for the looks that have a body. */
+const chosenWearer = () => document.querySelector('input[name="wearer"]:checked')?.value ?? "";
+
+function setWearer(id) {
+  for (const input of document.querySelectorAll('input[name="wearer"]')) input.checked = input.value === id;
+}
+
+function renderWearer() {
+  ui.wearerChoice.hidden = !STYLES[chosenStyle()]?.worn;
+}
+
 /** Keep the outfit just made. The picture is already on the page, so a failure here costs nothing. */
 async function keepOutfit({ image, review }, request) {
   try {
     const picture = new Blob([base64ToBytes(image.data)], { type: image.mimeType });
     const checked = review?.status === "reviewed" ? { verdict: review.verdict, score: review.score } : {};
     await saveOutfit(
-      { picture, labels: request.items.map((item) => item.label ?? ""), style: request.style, ...checked },
+      { picture, labels: request.items.map((item) => item.label ?? ""), style: request.style, wearer: request.wearer, ...checked },
       request.items,
     );
     await renderHistory();
@@ -1112,6 +1129,8 @@ async function reusePieces(outfit) {
   renderItems();
   const look = document.querySelector(`input[name="style"][value="${outfit.style}"]`);
   if (look) look.checked = true;
+  if (outfit.wearer in WEARERS) setWearer(outfit.wearer);
+  renderWearer();
   setAddStatus(`Loaded the ${pieces.length === 1 ? "piece" : `${pieces.length} pieces`} of that outfit. Change what you like and make it again.`);
   $("pieces-heading").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1233,6 +1252,19 @@ async function start() {
       return el("label", {}, [input, el("span", { text: style.label })]);
     }),
   );
+  ui.wearers.replaceChildren(
+    ...Object.entries(WEARERS).map(([id, wearer]) =>
+      el("label", {}, [el("input", { type: "radio", name: "wearer", value: id }), el("span", { text: wearer.label })]),
+    ),
+  );
+  // Someone making outfits for themselves wants the same answer every time, so it is remembered.
+  setWearer(state.settings.wearer in WEARERS ? state.settings.wearer : "");
+  ui.styles.addEventListener("change", renderWearer);
+  ui.wearers.addEventListener("change", () => {
+    state.settings.wearer = document.querySelector('input[name="wearer"]:checked')?.value ?? "";
+    saveSettings();
+  });
+  renderWearer();
   renderItems();
 
   await finishOpenRouterConnect();

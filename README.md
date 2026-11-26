@@ -42,6 +42,10 @@ Things worth knowing before you start:
 
 The Google connection has made real pictures (ten on 2026-11-25, through the page as a visitor uses it). The OpenAI and OpenRouter connections were written from those services' documentation and are covered by tests that pin the documented request and response shapes; they have not yet made a real picture, so expect to fix a detail or two on first use.
 
+## Who wears it
+
+For the **Mannequin** and **On a model** looks, a **Worn by** choice appears under the look: *Either*, *A woman* or *A man*. Left at *Either*, the picture model decides for itself, which is why the same pieces can come back on a man one time and a woman the next. The page remembers your answer. Checked on Google's model (2026-11-26): four pictures, a woman's and a man's mannequin and a woman and a man as the model, each came out as asked.
+
 ## Free alternative: a model on your own computer
 
 If your computer has a good graphics card, it can make the pictures itself, at no cost. In Setup choose **This computer** and follow its three steps:

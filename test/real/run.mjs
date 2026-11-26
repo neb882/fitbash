@@ -30,6 +30,7 @@ const { values: options } = parseArgs({
     "key-env": { type: "string", default: "FITBASH_TEST_KEY" },
     "check-key-env": { type: "string", default: "FITBASH_TEST_CLAUDE_KEY" },
     looks: { type: "string", default: "flatlay,model" },
+    wearer: { type: "string", default: "" }, // woman | man, for the mannequin and on-a-model looks
     notes: { type: "string", default: "" },
     site: { type: "string" }, // default: this checkout, served locally
     out: { type: "string", default: path.join(here, "out") },
@@ -176,6 +177,7 @@ try {
       await page.waitForFunction((n) => document.querySelectorAll(".item").length === n, outfit.pieces.length);
       for (const [index, piece] of outfit.pieces.entries()) await page.locator(".item input").nth(index).fill(piece.label);
       await page.check(`input[name="style"][value="${look}"]`, { force: true });
+      if (options.wearer && look !== "flatlay") await page.check(`input[name="wearer"][value="${options.wearer}"]`, { force: true });
       await page.fill("#notes", options.notes);
 
       const started = Date.now();

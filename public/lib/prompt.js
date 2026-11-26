@@ -10,12 +10,14 @@ export const STYLES = {
   },
   mannequin: {
     label: "Mannequin",
+    worn: true,
     aspectRatio: "3:4",
     scene:
       "Dress a plain, faceless shop mannequin in the pieces and show it full length, head to toe, front on, against a plain light studio background.",
   },
   model: {
     label: "On a model",
+    worn: true,
     aspectRatio: "3:4",
     scene:
       "Show the pieces worn together by a fashion model in a full-length, head-to-toe studio photo, standing front on against a plain light background.",
@@ -25,16 +27,29 @@ export const STYLES = {
 export const DEFAULT_STYLE = "flatlay";
 
 /**
+ * Who wears the outfit in the looks that have a body, with the sentence each look adds.
+ * The empty choice says nothing, which leaves it to the model: it then picks as it sees fit.
+ */
+export const WEARERS = {
+  "": { label: "Either" },
+  woman: { label: "A woman", mannequin: "The mannequin has a woman's figure.", model: "The model is a woman." },
+  man: { label: "A man", mannequin: "The mannequin has a man's figure.", model: "The model is a man." },
+};
+
+/**
  * @param {object} request
  * @param {{label?: string}[]} request.items  one entry per reference picture, in order
  * @param {string} request.style              key of STYLES
+ * @param {string} [request.wearer]           key of WEARERS; only the worn looks use it
  * @param {boolean} request.fillGaps          may the model add basics the user didn't supply
  * @param {string} [request.notes]            free text from the user
  * @param {string} [request.feedback]         what the last attempt got wrong
  */
-export function buildPrompt({ items, style, fillGaps, notes, feedback }) {
-  const scene = (STYLES[style] ?? STYLES[DEFAULT_STYLE]).scene;
-  const worn = style === "model" || style === "mannequin";
+export function buildPrompt({ items, style, wearer, fillGaps, notes, feedback }) {
+  const look = STYLES[style] ? style : DEFAULT_STYLE;
+  const { worn = false } = STYLES[look];
+  const who = worn ? WEARERS[wearer]?.[look] : "";
+  const scene = who ? `${STYLES[look].scene} ${who}` : STYLES[look].scene;
 
   const list = items
     .map((item, i) => `${i + 1}. ${item.label?.trim() || "clothing item"}`)

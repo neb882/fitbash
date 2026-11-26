@@ -1031,6 +1031,63 @@ test("a download in the app is picked up again after the page was closed, and a 
   assert.deepEqual(seen.errors, []);
 });
 
+test("who wears the outfit can be chosen for the looks that have a body, and is remembered", options, async (t) => {
+  const { page, seen } = await open(t, { context: devices["Pixel 7"], services: {} });
+  await page.fill("#provider-key", "GOOD-KEY");
+  await addFiles(page, [TEE, JEANS]);
+  const said = () => seen.google.at(-1).body.input[0].text;
+  const make = async () => {
+    await page.click("#generate");
+    await untilText(page, "#progress", "Done.");
+  };
+
+  // A flat lay has nobody in it: the question isn't asked.
+  assert.equal(await page.isHidden("#wearer-choice"), true);
+  await page.check('input[name="style"][value="mannequin"]', { force: true });
+  assert.equal(await page.isVisible("#wearer-choice"), true);
+  assert.deepEqual(await page.$$eval("#wearers label", (labels) => labels.map((label) => label.textContent)), ["Either", "A woman", "A man"]);
+  assert.equal(await page.isChecked('input[name="wearer"][value=""]'), true);
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    0,
+    "the choice fits a phone",
+  );
+
+  // Left at "either", nothing is said and the model decides, as before.
+  await make();
+  assert.doesNotMatch(said(), /woman|a man/i);
+
+  await page.check('input[name="wearer"][value="man"]', { force: true });
+  await make();
+  assert.match(said(), /The mannequin has a man's figure\./);
+  await page.check('input[name="style"][value="model"]', { force: true });
+  await page.check('input[name="wearer"][value="woman"]', { force: true });
+  await make();
+  assert.match(said(), /The model is a woman\./);
+
+  // Back on a flat lay the choice is put away and not sent.
+  await page.check('input[name="style"][value="flatlay"]', { force: true });
+  assert.equal(await page.isHidden("#wearer-choice"), true);
+  await make();
+  assert.doesNotMatch(said(), /woman|a man/i);
+
+  // The answer is kept for the next visit.
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#empty").textContent.length > 0);
+  await page.check('input[name="style"][value="model"]', { force: true });
+  assert.equal(await page.isChecked('input[name="wearer"][value="woman"]'), true);
+
+  // Using a past outfit again brings back its look and who wore it.
+  await page.check('input[name="wearer"][value=""]', { force: true });
+  await page.check('input[name="style"][value="flatlay"]', { force: true });
+  await page.locator('.past button:has-text("Use these pieces")').nth(2).click();
+  await untilText(page, "#add-status", "Loaded the 2 pieces");
+  assert.equal(await page.isChecked('input[name="style"][value="mannequin"]'), true);
+  assert.equal(await page.isVisible("#wearer-choice"), true);
+  assert.equal(await page.isChecked('input[name="wearer"][value="man"]'), true);
+  assert.deepEqual(seen.errors, []);
+});
+
 test("a graphics card smaller than the model gets one extra step, which goes away once it is done", options, async (t) => {
   const services = { local: { catalog: localCatalog().map((model) => ({ ...model, downloaded: true })) } };
   const { page } = await open(t, { context: devices["Pixel 7"], services });
