@@ -9,11 +9,12 @@
       "orders": [
         "WO-01",
         "WO-02",
-        "WO-03"
+        "WO-03",
+        "WO-04"
       ],
-      "rounds": 1,
+      "rounds": 2,
       "status": "open",
-      "so_far": "Settled: --diffusion-fa is what the engine needs on any card, Setup's line stays --diffusion-fa --offload-to-cpu, and the step shows and goes correctly on the published site (WO-01, WO-02). Settled: the two option sets fail alike on a one-piece outfit when another program holds part of the card (18 of 20 with 0.5 or 1 GB held, WO-02), so the choice between them does not rest on that. Still open, and the reason for WO-03: a one-piece outfit fails on a 12 GB card with as little as half a gigabyte more in use than usual, because for one piece the engine puts the whole model on the card as one block and then needs 2.47 GB of working room. WO-03 tries the engine's own options for limiting what it puts on the card. To weigh at the end: with --offload-to-cpu the whole model sits in ordinary memory (15.2 GB for the standard model, 17.6 GB for the larger), which a computer with 16 GB may not have."
+      "so_far": "Settled: --diffusion-fa is what the engine needs on any card; the two option sets fail alike on one piece; and the engine's --max-vram 8 cures the one-piece failure for the standard model on a 12 GB card (WO-03: 5 of 5 with a gigabyte held, 5 of 5 on the published site straight after the saved options failed 5 in 8, same seconds). Round 2: Setup's line for Flux-2-Klein-4B on a 12 to 16 GB card is now --diffusion-fa --offload-to-cpu --max-vram 8, and someone with only the first two saved is shown the step again with its reason. No other card or model is given the option, since none was measured. WO-04 confirms it on the published site; this is the second of three rounds. To weigh afterwards: with --offload-to-cpu the whole model sits in ordinary memory (15.2 GB standard, 17.6 GB larger), which a 16 GB computer may not have."
     },
     {
       "id": "G2",
@@ -79,27 +80,30 @@
         "WO-03"
       ],
       "rounds": 1,
-      "status": "open",
-      "so_far": "WO-02 found shorts with separate lower legs in 4 of 11 one-piece pictures from the standard local model. The instruction now names what to add (plain full-length trousers, a plain pair of ordinary shoes) instead of 'a plain one'. Google's model handled the new wording on a lone tee, on a model and as a flat lay. WO-03 counts the fault on the real card."
+      "status": "closed",
+      "outcome": "WO-03 confirmed it on the published site and in the checkout: with the instruction naming the added pieces, 28 one-piece pictures in 28 (24 from the standard model, 4 from the larger) showed whole, plain, full-length trousers and plain shoes, against 4 malformed in 11 before."
     }
   ],
   "in_flight": [
     {
-      "order": "WO-03",
+      "order": "WO-04",
       "with": "the worker on the owner's computer",
       "sent": "2026-11-26",
-      "report": "docs/reports/WO-03.md on the branch gpu-findings"
+      "report": "docs/reports/WO-04.md on the branch gpu-findings"
     }
   ],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
-    "A shorter instruction for local models: they lost odd shapes and added jewellery despite the instruction. Whether fewer words are followed better is a question for a work order after WO-03.",
-    "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup."
+    "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
+    "A shorter instruction for local models: they lost odd shapes (the clown shoes in every picture) and sometimes added jewellery. Naming the added pieces outright fixed the bottoms, so plainer, more literal wording may help here too. A work order after WO-04.",
+    "--max-vram for cards that were not measured: an 11 GB card is likely the most fragile of all, and nothing is known for 8, 16 or 24 GB. Needs other hardware, which the worker does not have."
   ],
   "dead_ends": [
     "--offload-to-cpu on its own as the memory step: on a 12 GB card it failed every outfit of two to four pieces, exactly as no options did (WO-01).",
     "\"Try again with fewer pieces\" as advice for a failed local picture: with the card nearly full, one piece was the outfit that failed and adding a second made it work (WO-01).",
-    "Choosing between --diffusion-fa alone and both options to make a one-piece outfit safer: with part of the card held they fail alike, for the same stated reason (WO-02)."
+    "Choosing between --diffusion-fa alone and both options to make a one-piece outfit safer: with part of the card held they fail alike, for the same stated reason (WO-02).",
+    "--max-vram -1 (reserve a gigabyte of whatever is free): the engine works the figure out once at load and still plans one block; 2 of 5 with a gigabyte held (WO-03).",
+    "--max-vram 6: it works, but every picture's last stage fails once and is redone in tiles (WO-03). 8 leaves that stage alone."
   ],
   "open_questions": [],
   "owner_priorities": [

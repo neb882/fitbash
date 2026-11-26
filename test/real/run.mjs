@@ -30,6 +30,7 @@ const { values: options } = parseArgs({
     "key-env": { type: "string", default: "FITBASH_TEST_KEY" },
     "check-key-env": { type: "string", default: "FITBASH_TEST_CLAUDE_KEY" },
     looks: { type: "string", default: "flatlay,model" },
+    computer: { type: "string", default: "" }, // small | medium | large | apple | none: the answer to "What kind of computer is this?" (a test browser has no graphics card to recognise)
     wearer: { type: "string", default: "" }, // woman | man, for the mannequin and on-a-model looks
     build: { type: "string", default: "" }, // slim | average | plus, for the same two looks
     place: { type: "string", default: "" }, // street | outdoors, for the on-a-model look
@@ -142,6 +143,7 @@ try {
   await page.click(`#providers input[value="${options.service}"]`, { force: true });
   let setup;
   if (options.service === "local") {
+    if (options.computer) await page.selectOption("#local-tier", options.computer);
     await page.click("#local-connect");
     await page.waitForFunction(
       () => {

@@ -13,7 +13,7 @@ import {
   LOCAL_TIERS,
   findLocalModels,
   localMaxPieces,
-  localMemoryCommand,
+  localEngineStep,
   readLocalDownloads,
   pickLocalModel,
   startLocalDownload,
@@ -312,20 +312,20 @@ function renderLocal() {
   }
 }
 
+const ENGINE_STEP_WHY = {
+  pieces: "One more step, done once. Without it the app runs out of graphics memory as soon as an outfit has two pieces or more:",
+  room: "One more step for this graphics card, done once. Without it a one-piece outfit often fails while other programs are using the card:",
+};
+
 /**
- * The one more step the app's picture engine needs before it can make an outfit of several
- * pieces: { command, why }, or null when the model in use isn't run by that engine or already has it.
- * It is the same for every graphics card: what the engine asks for without it outgrows any of them.
+ * The one more step the app's picture engine needs before it can be relied on: { command, why },
+ * or null when the model in use isn't run by that engine or already has what it needs.
  */
 function localMemoryStep() {
   const { local, settings } = state;
   if (local.status !== "connected") return null;
-  const command = localMemoryCommand(local.models.find((model) => model.id === settings.localModel));
-  if (!command) return null;
-  return {
-    command,
-    why: "One more step, done once. Without it the app runs out of graphics memory as soon as an outfit has two pieces or more:",
-  };
+  const step = localEngineStep(local.models.find((model) => model.id === settings.localModel), localTier());
+  return step && { command: step.command, why: ENGINE_STEP_WHY[step.lacks] };
 }
 
 /** Use the model picked in the list if it is on this computer; otherwise leave Setup unfinished. */

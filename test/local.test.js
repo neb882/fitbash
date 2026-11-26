@@ -6,7 +6,7 @@ import {
   LOCAL_TIERS,
   createLocalProvider,
   findLocalModels,
-  localMemoryCommand,
+  localEngineStep,
   pickLocalModel,
   readLocalDownloads,
   startLocalDownload,
@@ -79,24 +79,45 @@ test("the default address is used when none is set, and a JPEG answer is recogni
   assert.equal(out.mimeType, "image/jpeg");
 });
 
-test("a model larger than the graphics card gets one line to paste, unless the app already has it", () => {
-  const model = { id: "Flux-2-Klein-4B", recipe: "sd-cpp", memorySaving: false };
-  // The line that made pictures work on a real 12 GB card (2026-11-25).
-  assert.equal(
-    localMemoryCommand(model),
-    'lemonade load Flux-2-Klein-4B --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options',
-  );
-  assert.equal(localMemoryCommand({ ...model, memorySaving: true }), null);
+test("the engine's one more step is one line to paste, for the engine it is meant for", () => {
+  const model = { id: "Flux-2-Klein-9B-GGUF", recipe: "sd-cpp", savedOptions: "" };
+  // The line the worker ran on the real app, as Setup showed it (docs/reports/WO-02.md).
+  assert.deepEqual(localEngineStep(model, "medium"), {
+    lacks: "pieces",
+    command: 'lemonade load Flux-2-Klein-9B-GGUF --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options',
+  });
+  assert.equal(localEngineStep({ ...model, savedOptions: "--diffusion-fa --offload-to-cpu" }, "medium"), null);
   // Another engine, or an app that doesn't say, takes other options: no line is better than a wrong one.
-  assert.equal(localMemoryCommand({ ...model, recipe: "thenoise" }), null);
-  assert.equal(localMemoryCommand({ ...model, recipe: null }), null);
-  assert.equal(localMemoryCommand(undefined), null);
+  assert.equal(localEngineStep({ ...model, recipe: "thenoise" }, "medium"), null);
+  assert.equal(localEngineStep({ ...model, recipe: null }, "medium"), null);
+  assert.equal(localEngineStep(undefined, "medium"), null);
   // A name that would do something else in a terminal is never put in the line.
   for (const id of ["x & calc", "x; rm -rf ~", "$(reboot)", "a b", "-m", 'x"y', ""]) {
-    assert.equal(localMemoryCommand({ ...model, id }), null, id);
+    assert.equal(localEngineStep({ ...model, id }, "medium"), null, id);
   }
-  assert.match(localMemoryCommand({ ...model, id: "user.My-Model_2" }), /^lemonade load user\.My-Model_2 /);
+  assert.match(localEngineStep({ ...model, id: "user.My-Model_2" }, "").command, /^lemonade load user\.My-Model_2 /);
+});
 
+test("the standard model on a 12 to 16 GB card is also given room for a one-piece outfit", () => {
+  // Measured on the real app (docs/reports/WO-03.md): with --max-vram 8 beside the other two options a
+  // one-piece outfit was made 5 times in 5 with a gigabyte of the card held; without it, with the owner
+  // simply using the computer, it failed 5 requests in 8.
+  const model = { id: "Flux-2-Klein-4B", recipe: "sd-cpp", savedOptions: "" };
+  const full = 'lemonade load Flux-2-Klein-4B --sdcpp-args "--diffusion-fa --offload-to-cpu --max-vram 8" --save-options';
+  assert.deepEqual(localEngineStep(model, "medium"), { lacks: "pieces", command: full });
+  // Someone who did the step before the limit was known is shown it again, and told why.
+  assert.deepEqual(localEngineStep({ ...model, savedOptions: "--diffusion-fa --offload-to-cpu" }, "medium"), { lacks: "room", command: full });
+  assert.equal(localEngineStep({ ...model, savedOptions: "--diffusion-fa --offload-to-cpu --max-vram 8" }, "medium"), null);
+  // Any limit the person chose counts: the page does not argue with a different number.
+  assert.equal(localEngineStep({ ...model, savedOptions: "--max-vram 6 --diffusion-fa" }, "medium"), null);
+
+  // Nothing was measured on other cards or for the larger model (which is split anyway), so they get no limit.
+  const plain = 'lemonade load Flux-2-Klein-4B --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options';
+  for (const tier of ["small", "large", "apple", "none", "", undefined]) {
+    assert.deepEqual(localEngineStep(model, tier), { lacks: "pieces", command: plain }, String(tier));
+    assert.equal(localEngineStep({ ...model, savedOptions: "--diffusion-fa" }, tier), null, String(tier));
+  }
+  assert.equal(localEngineStep({ id: "Flux-2-Klein-9B-GGUF", recipe: "sd-cpp", savedOptions: "--diffusion-fa" }, "medium"), null);
 });
 
 test("the step counts as done when the saved options hold the one the engine needs", async () => {
@@ -128,24 +149,25 @@ test("the step counts as done when the saved options hold the one the engine nee
         withOptions("fa-last", "--vae-tiling --diffusion-fa"),
         withOptions("lookalike", "--diffusion-fast"),
         withOptions("empty", ""),
+        withOptions("not-text", 7),
       ],
     }),
   );
   const { models } = await findLocalModels(undefined, listed);
-  assert.deepEqual(models.map((model) => [model.id, model.memorySaving]), [
+  assert.deepEqual(models[0], { id: "Flux-2-Klein-4B", sizeGb: 15.0, downloaded: true, recipe: "sd-cpp", savedOptions: "--diffusion-fa --offload-to-cpu" });
+  assert.equal(models[1].savedOptions, "");
+  assert.equal(models[7].savedOptions, "");
+  // Measured: --diffusion-fa is the option that makes outfits of several pieces work; the other alone fixed nothing.
+  assert.deepEqual(models.map((model) => [model.id, localEngineStep(model, "large") === null]), [
     ["Flux-2-Klein-4B", true],
     ["Flux-2-Klein-9B-GGUF", false],
-    // Measured: --diffusion-fa is the option that makes outfits of several pieces work; the other alone fixed nothing.
     ["fa-alone", true],
     ["offload-alone", false],
     ["fa-last", true],
     ["lookalike", false],
     ["empty", false],
+    ["not-text", false],
   ]);
-  assert.deepEqual(models[0], { id: "Flux-2-Klein-4B", sizeGb: 15.0, downloaded: true, recipe: "sd-cpp", memorySaving: true });
-  assert.equal(localMemoryCommand(models[0]), null);
-  assert.match(localMemoryCommand(models[1]), /^lemonade load Flux-2-Klein-9B-GGUF --sdcpp-args "--diffusion-fa --offload-to-cpu" --save-options$/);
-  assert.match(localMemoryCommand(models[3]), /^lemonade load /, "saving the option that fixes nothing does not put the step away");
 });
 
 test("each picture is asked for with a seed of its own", async () => {
@@ -225,8 +247,8 @@ test("models that can combine pictures are listed, with size and whether they ar
   assert.deepEqual(found, {
     status: "connected",
     models: [
-      { id: "Flux-2-Klein-9B-GGUF", sizeGb: 19.0, downloaded: false, recipe: "sd-cpp", memorySaving: false },
-      { id: "Flux-2-Klein-4B", sizeGb: 16.1, downloaded: false, recipe: "sd-cpp", memorySaving: true },
+      { id: "Flux-2-Klein-9B-GGUF", sizeGb: 19.0, downloaded: false, recipe: "sd-cpp", savedOptions: "" },
+      { id: "Flux-2-Klein-4B", sizeGb: 16.1, downloaded: false, recipe: "sd-cpp", savedOptions: "--diffusion-fa --offload-to-cpu" },
     ],
   });
 });
@@ -234,7 +256,7 @@ test("models that can combine pictures are listed, with size and whether they ar
 test("an app that labels nothing is taken to serve the one model it has", async () => {
   const single = { data: [{ id: "sd-cpp-local", object: "model", owned_by: "local" }] };
   const found = await findLocalModels("http://127.0.0.1:1234/v1", recorder(() => json(200, single)));
-  assert.deepEqual(found, { status: "connected", models: [{ id: "sd-cpp-local", sizeGb: null, downloaded: true, recipe: null, memorySaving: false }] });
+  assert.deepEqual(found, { status: "connected", models: [{ id: "sd-cpp-local", sizeGb: null, downloaded: true, recipe: null, savedOptions: "" }] });
 });
 
 test("an app that is running but refuses this website is told apart from one that isn't there", async () => {
