@@ -116,18 +116,11 @@
         "WO-09"
       ],
       "rounds": 1,
-      "status": "open",
-      "so_far": "WO-08 (28 checks with the owner's key, $0.91; 16 Google pictures): run from Node as the page builds it, the check answered 28 times in 28 on the default model. It passed 4 good pictures twice each, the oversized clown shoes among them, and failed 8 of 10 kinds of planted fault twice each, naming the fault every time (wrong lettering, a redrawn print, recoloured laces, recoloured jeans, a replaced piece, jeans cut to shorts, a doubled piece, odd shoes made ordinary). It passed two faults twice each with every field empty: jeans folded in half in a flat lay, and a head cut off at the mouth. A check cost about 3 cents and took 2 to 6 seconds. Changed on that: the check's instructions now fail a piece that cannot be seen whole and a figure not in frame head to shoes; the page's cost sentence says a few cents instead of 'roughly doubles'; the runner's check is off unless a variable is named. WO-09 runs the same fourteen pictures again. Still unproven: the browser's own path to Anthropic. The cloud workspace's test browser cannot reach it (a certificate error from the workspace's network); a preflight from here shows Anthropic allows the site's origin and the headers the check sends; a real browser on an ordinary network has not tried it."
+      "status": "with_owner",
+      "so_far": "Settled by WO-08 and WO-09 (56 checks with the owner's key, $1.89; 16 Google pictures), run from Node as the page builds the request: the check answers on the default model; it passes four good pictures and fails ten kinds of planted fault, twice each, naming the fault every time. Two of the ten (jeans folded in half in a flat lay, a head cut off at the mouth) were passed in WO-08 and are caught since the instructions were changed; WO-09 confirmed that, with the good pictures still passing and nothing caught before now missed. A check costs about 3 to 4 cents and takes 2 to 6 seconds for three pieces. With the owner: the browser's own path to Anthropic, which no session here can reach (see open_questions). Not tested: the redo made from the check's notes, fillGaps off, other numbers of pieces, subtler faults, and good pictures at the edges of the two new rules (a shirt properly under a jacket in a flat lay, a hat reaching the top edge)."
     }
   ],
-  "in_flight": [
-    {
-      "order": "WO-09",
-      "with": "the cloud session that ran WO-08",
-      "sent": "2026-11-26",
-      "report": "docs/reports/WO-09.md on the branch check-findings"
-    }
-  ],
+  "in_flight": [],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
     "Setup, 'What kind of computer is this?': choosing 'Choose…' by hand shows the advice for the page's own guess (WO-02, surprise 6). Small; fix with the next change to Setup.",
