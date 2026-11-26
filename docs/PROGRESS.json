@@ -83,14 +83,7 @@
       "so_far": "WO-02 found shorts with separate lower legs in 4 of 11 one-piece pictures from the standard local model. The instruction now names what to add (plain full-length trousers, a plain pair of ordinary shoes) instead of 'a plain one'. Google's model handled the new wording on a lone tee, on a model and as a flat lay. WO-03 counts the fault on the real card."
     }
   ],
-  "in_flight": [
-    {
-      "order": "WO-03",
-      "with": "the worker on the owner's computer",
-      "sent": "2026-11-26",
-      "report": "docs/reports/WO-03.md on the branch gpu-findings"
-    }
-  ],
+  "in_flight": [],
   "next": [
     "The download readout between two files: the app reports no progress for about half a minute and the page then shows the size alone, which reads as stuck. It can only be confirmed during a real download, so it waits for the next one.",
     "A shorter instruction for local models: they lost odd shapes and added jewellery despite the instruction. Whether fewer words are followed better is a question for a work order after WO-03.",
